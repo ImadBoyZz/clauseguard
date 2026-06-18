@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Environment / secrets (keep .env.example)
+.env
+.env.*
+!.env.example
+
+# OS / editor
+.DS_Store
+Thumbs.db
+
+# Internal planning docs (kept local, not published)
+CLAUDE.md
+DRAAIBOEK.md
+PRODUCT.md
+DESIGN.md
+HANDOFF.md
+
+# Temp / scratch
+temp_test_*.js

@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="nl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ClauseGuard — design preview</title>
+    <!--
+      Dev-only previewpagina. Geen Office-host aanwezig, dus we shimmen het minimale
+      Office-oppervlak dat de capability-gates (isTrackChangesSupported / isReviewSupported)
+      lezen. Dit bestand komt nooit in de productie-build of het manifest.
+    -->
+    <script>
+      window.Office = {
+        onReady: function (cb) {
+          if (cb) cb({ host: "Word", platform: "PC" });
+          return Promise.resolve({ host: "Word", platform: "PC" });
+        },
+        context: {
+          requirements: {
+            isSetSupported: function () {
+              return true;
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: #e7e8ec;
+        font-family: "Segoe UI", system-ui, sans-serif;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="preview-root"></div>
+  </body>
+</html>
