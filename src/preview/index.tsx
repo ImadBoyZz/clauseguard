@@ -16,122 +16,72 @@ import { clauseGuardLightTheme, cg } from "../taskpane/theme";
 import PaneHeader from "../taskpane/components/PaneHeader";
 import Toolbar from "../taskpane/components/Toolbar";
 import IssueList from "../taskpane/components/IssueList";
-import { Issue } from "../taskpane/core/types";
+import { Issue, LangMode } from "../taskpane/core/types";
 
 type Status = "idle" | "scanning" | "applying" | "ready";
 
-/** Verse set mock-issues die de demo benadert: 6 spelling + 2 advies (grammatica/stijl). */
+/** Verse set mock-issues die de demo benadert: 6 spelfouten (NL + EN). */
 function mockIssues(): Issue[] {
   return [
-    // --- Advies: stijl/grammatica (LLM) ---
-    {
-      id: "style-1",
-      category: "style",
-      severity: "advisory",
-      original: "will provide the Services",
-      suggestion: "shall provide the Services",
-      explanation:
-        'In bindende verplichtingen verdient "shall" de voorkeur boven "will": het drukt een afdwingbare plicht uit in plaats van een toekomstige intentie.',
-      confidence: 0.82,
-      language: "en",
-      paragraphIndex: 7,
-      occurrence: 0,
-      status: "pending",
-      source: "llm",
-    },
-    {
-      id: "grammar-1",
-      category: "grammar",
-      severity: "advisory",
-      original: "naar redelijkheid",
-      explanation:
-        'Vage maatstaf. "Naar redelijkheid" is moeilijk afdwingbaar; overweeg een concrete termijn of objectief criterium.',
-      confidence: 0.61,
-      language: "nl",
-      paragraphIndex: 12,
-      occurrence: 0,
-      status: "pending",
-      source: "llm",
-    },
-    // --- Spelling (NL + EN) ---
     {
       id: "sp-1",
-      category: "spelling",
-      severity: "spelling",
       original: "overheidsopdarcht",
       suggestion: "overheidsopdracht",
-      explanation:
-        "Onbekend woord in het Nederlandse woordenboek. Bedoelde je “overheidsopdracht”?",
+      explanation: 'Mogelijke spelfout — bedoelde je "overheidsopdracht"?',
       language: "nl",
       paragraphIndex: 2,
       occurrence: 0,
       status: "pending",
-      source: "nspell",
     },
     {
       id: "sp-2",
-      category: "spelling",
-      severity: "spelling",
       original: "agreemnet",
       suggestion: "agreement",
-      explanation: "Onbekend woord in het Engelse woordenboek. Bedoelde je “agreement”?",
+      explanation: 'Mogelijke spelfout — bedoelde je "agreement"?',
       language: "en",
       paragraphIndex: 3,
       occurrence: 0,
       status: "pending",
-      source: "nspell",
     },
     {
       id: "sp-3",
-      category: "spelling",
-      severity: "spelling",
       original: "verplichtignen",
       suggestion: "verplichtingen",
-      explanation: "Onbekend woord in het Nederlandse woordenboek. Bedoelde je “verplichtingen”?",
+      explanation: 'Mogelijke spelfout — bedoelde je "verplichtingen"?',
       language: "nl",
       paragraphIndex: 5,
       occurrence: 0,
       status: "pending",
-      source: "nspell",
     },
     {
       id: "sp-4",
-      category: "spelling",
-      severity: "spelling",
       original: "liabilty",
       suggestion: "liability",
-      explanation: "Onbekend woord in het Engelse woordenboek. Bedoelde je “liability”?",
+      explanation: 'Mogelijke spelfout — bedoelde je "liability"?',
       language: "en",
       paragraphIndex: 8,
       occurrence: 0,
       status: "pending",
-      source: "nspell",
     },
     {
       id: "sp-5",
-      category: "spelling",
-      severity: "spelling",
       original: "betlaing",
       suggestion: "betaling",
-      explanation: "Onbekend woord in het Nederlandse woordenboek. Bedoelde je “betaling”?",
+      explanation: 'Mogelijke spelfout — bedoelde je "betaling"?',
       language: "nl",
       paragraphIndex: 10,
       occurrence: 0,
       status: "pending",
-      source: "nspell",
     },
     {
       id: "sp-6",
-      category: "spelling",
-      severity: "spelling",
       original: "terminaton",
       suggestion: "termination",
-      explanation: "Onbekend woord in het Engelse woordenboek. Bedoelde je “termination”?",
+      explanation: 'Mogelijke spelfout — bedoelde je "termination"?',
       language: "en",
       paragraphIndex: 13,
       occurrence: 0,
       status: "pending",
-      source: "nspell",
     },
   ];
 }
@@ -210,6 +160,7 @@ const Preview: React.FC = () => {
   const [status, setStatus] = React.useState<Status>("idle");
   const [error, setError] = React.useState<string | undefined>(undefined);
   const [scenario, setScenario] = React.useState<Scenario>("empty");
+  const [lang, setLang] = React.useState<LangMode>("auto");
 
   const applyScenario = (next: Scenario) => {
     setScenario(next);
@@ -289,9 +240,10 @@ const Preview: React.FC = () => {
             <Toolbar
               issues={issues}
               status={status}
-              useLlm={true}
+              lang={lang}
+              langStale={false}
               onScan={onScan}
-              onToggleLlm={() => undefined}
+              onLangChange={setLang}
               onApplyAll={onApplyAll}
               onAcceptAll={() => undefined}
               onRejectAll={() => undefined}

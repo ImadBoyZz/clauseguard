@@ -1,7 +1,7 @@
 import * as React from "react";
 import { Skeleton, SkeletonItem, makeStyles, tokens } from "@fluentui/react-components";
 import { DocumentSearchRegular, CheckmarkCircleFilled } from "@fluentui/react-icons";
-import { Issue, Severity, SEVERITY_LABEL } from "../core/types";
+import { Issue } from "../core/types";
 import { cg } from "../theme";
 import IssueCard from "./IssueCard";
 
@@ -37,40 +37,10 @@ const useStyles = makeStyles({
     color: tokens.colorNeutralForeground1,
   },
   emptyBody: {
-    margin: `${tokens.spacingVerticalXS} 0 ${tokens.spacingVerticalL}`,
-    maxWidth: "30ch",
+    margin: `${tokens.spacingVerticalXS} 0 0`,
+    maxWidth: "32ch",
     fontSize: tokens.fontSizeBase300,
     lineHeight: tokens.lineHeightBase300,
-    color: tokens.colorNeutralForeground3,
-  },
-  legend: {
-    display: "flex",
-    flexDirection: "column",
-    gap: tokens.spacingVerticalS,
-    width: "100%",
-    paddingTop: tokens.spacingVerticalM,
-    borderTop: `1px solid ${cg.glass.stroke}`,
-  },
-  legendRow: {
-    display: "flex",
-    alignItems: "flex-start",
-    gap: tokens.spacingHorizontalS,
-    textAlign: "left",
-  },
-  legendDot: {
-    width: "8px",
-    height: "8px",
-    borderRadius: tokens.borderRadiusCircular,
-    flexShrink: 0,
-    marginTop: "5px",
-  },
-  legendLabel: {
-    fontSize: tokens.fontSizeBase200,
-    fontWeight: tokens.fontWeightSemibold,
-    color: tokens.colorNeutralForeground1,
-  },
-  legendDesc: {
-    fontSize: tokens.fontSizeBase200,
     color: tokens.colorNeutralForeground3,
   },
   // --- Loading skeleton ---
@@ -116,8 +86,8 @@ const useStyles = makeStyles({
     fontSize: tokens.fontSizeBase200,
     color: tokens.colorNeutralForeground1,
   },
-  // --- Severity groups ---
-  groupHeader: {
+  // --- List ---
+  listHeader: {
     display: "flex",
     alignItems: "center",
     gap: tokens.spacingHorizontalS,
@@ -126,33 +96,24 @@ const useStyles = makeStyles({
     marginBottom: tokens.spacingVerticalS,
     borderBottom: `1px solid ${cg.glass.stroke}`,
   },
-  groupDot: {
+  listDot: {
     width: "8px",
     height: "8px",
     borderRadius: tokens.borderRadiusCircular,
     flexShrink: 0,
   },
-  groupLabel: {
+  listLabel: {
     fontSize: tokens.fontSizeBase200,
     fontWeight: tokens.fontWeightSemibold,
     letterSpacing: "0.04em",
     textTransform: "uppercase",
   },
-  groupCount: {
+  listCount: {
     color: tokens.colorNeutralForeground3,
     fontSize: tokens.fontSizeBase200,
     fontVariantNumeric: "tabular-nums",
   },
 });
-
-/** Volgorde van de severity-groepen in de lijst (zwaarste eerst). */
-const SEVERITY_ORDER: Severity[] = ["advisory", "spelling"];
-
-/** Korte omschrijving per tier voor de onboarding-legenda. */
-const SEVERITY_DESC: Record<Severity, string> = {
-  advisory: "Grammatica, zinsbouw en stijl (AI-laag).",
-  spelling: "Spelfouten in Nederlands en Engels.",
-};
 
 const IssueList: React.FC<IssueListProps> = ({
   issues,
@@ -184,43 +145,19 @@ const IssueList: React.FC<IssueListProps> = ({
     );
   }
 
-  // Empty: leert de interface + toont de severity-legenda.
+  // Empty: korte onboarding.
   if (issues.length === 0) {
     return (
       <div className={styles.empty}>
         <DocumentSearchRegular className={styles.emptyIcon} aria-hidden />
         <h2 className={styles.emptyTitle}>Klaar om te controleren</h2>
         <p className={styles.emptyBody}>
-          Scan het document op spelling, grammatica en stijl. Elke bevinding krijgt een suggestie en
-          het waarom.
+          Scan het document op spelfouten in het Nederlands en Engels. Kies de taal in de balk
+          hierboven; elke fout krijgt een suggestie en het waarom.
         </p>
-        <div className={styles.legend}>
-          {SEVERITY_ORDER.map((sev) => (
-            <div key={sev} className={styles.legendRow}>
-              <span
-                className={styles.legendDot}
-                style={{ backgroundColor: cg.sev[sev].fg }}
-                aria-hidden
-              />
-              <span>
-                <span className={styles.legendLabel}>{SEVERITY_LABEL[sev]}</span>
-                <span className={styles.legendDesc}> — {SEVERITY_DESC[sev]}</span>
-              </span>
-            </div>
-          ))}
-        </div>
       </div>
     );
   }
-
-  // Groepeer per severity.
-  const grouped = SEVERITY_ORDER.reduce<Record<Severity, Issue[]>>(
-    (acc, sev) => {
-      acc[sev] = issues.filter((i) => i.severity === sev);
-      return acc;
-    },
-    { advisory: [], spelling: [] }
-  );
 
   const allResolved = issues.every((i) => i.status !== "pending");
   const appliedCount = issues.filter((i) => i.status === "accepted").length;
@@ -232,6 +169,14 @@ const IssueList: React.FC<IssueListProps> = ({
     .filter(Boolean)
     .join(" · ");
 
+  // Toon in documentvolgorde (paragraaf, dan voorkomen). De carry-over-logica in de hook kan
+  // verwerkte issues vooraan zetten; sorteren geeft een stabiele leesvolgorde.
+  const ordered = [...issues].sort((a, b) =>
+    a.paragraphIndex !== b.paragraphIndex
+      ? a.paragraphIndex - b.paragraphIndex
+      : a.occurrence - b.occurrence
+  );
+
   return (
     <div className={styles.root}>
       {allResolved && (
@@ -241,34 +186,27 @@ const IssueList: React.FC<IssueListProps> = ({
         </div>
       )}
 
-      {SEVERITY_ORDER.map((sev) => {
-        const group = grouped[sev];
-        if (group.length === 0) return null;
-        return (
-          <section key={sev}>
-            <div className={styles.groupHeader}>
-              <span
-                className={styles.groupDot}
-                style={{ backgroundColor: cg.sev[sev].fg }}
-                aria-hidden
-              />
-              <span className={styles.groupLabel} style={{ color: cg.sev[sev].fg }}>
-                {SEVERITY_LABEL[sev]}
-              </span>
-              <span className={styles.groupCount}>{group.length}</span>
-            </div>
-            {group.map((issue) => (
-              <IssueCard
-                key={issue.id}
-                issue={issue}
-                onAccept={onAccept}
-                onDismiss={onDismiss}
-                onLocate={onLocate}
-              />
-            ))}
-          </section>
-        );
-      })}
+      <div className={styles.listHeader}>
+        <span
+          className={styles.listDot}
+          style={{ backgroundColor: cg.spelling.fg }}
+          aria-hidden
+        />
+        <span className={styles.listLabel} style={{ color: cg.spelling.fg }}>
+          Spelling
+        </span>
+        <span className={styles.listCount}>{ordered.length}</span>
+      </div>
+
+      {ordered.map((issue) => (
+        <IssueCard
+          key={issue.id}
+          issue={issue}
+          onAccept={onAccept}
+          onDismiss={onDismiss}
+          onLocate={onLocate}
+        />
+      ))}
     </div>
   );
 };

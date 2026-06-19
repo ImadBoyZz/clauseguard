@@ -1,7 +1,7 @@
 // ClauseGuard — Fluent v9 merk-theme (dark glass).
 // Eén bron van waarheid voor kleur: het Fluent-theme (createDarkTheme op een eigen
 // coral-ramp) dekt acties/selectie/neutralen; de `cg`-constanten dekken de dingen die
-// Fluent niet kent (glass-surfaces, de warme canvas-glow, het severity-palet op donker,
+// Fluent niet kent (glass-surfaces, de warme canvas-glow, het spelling-accent op donker,
 // de redline-diff). Schrijf in componenten geen losse hex: gebruik een Fluent-token of `cg`.
 // Waarden zijn vastgelegd in DESIGN.md.
 
@@ -47,8 +47,8 @@ export const clauseGuardDarkTheme: Theme = {
 /** Behoud van de oude export-naam zodat bestaande imports niet breken. */
 export const clauseGuardLightTheme = clauseGuardDarkTheme;
 
-/** Eén severity-tier visueel: voorgrond (dot/tekst), zachte chip-achtergrond, border. */
-export interface SeverityVisual {
+/** Eén accent-visual: voorgrond (dot/tekst), zachte chip-achtergrond, border. */
+export interface AccentVisual {
   fg: string;
   bg: string;
   border: string;
@@ -56,7 +56,7 @@ export interface SeverityVisual {
 
 /**
  * Merk-constanten voor wat buiten Fluent's token-set valt. De glass-waarden zijn
- * translucent (rgba) zodat ze de canvas-glow doorlaten; severity-fg is helder genoeg om
+ * translucent (rgba) zodat ze de canvas-glow doorlaten; de spelling-fg is helder genoeg om
  * AA te halen op de donkere glass-fill.
  */
 export const cg = {
@@ -106,11 +106,12 @@ export const cg = {
   radius: "14px",
   radiusSm: "10px",
 
-  /** Severity-palet op glass: ernst = kleur + label + volgorde (kleurenblind-veilig). */
-  sev: {
-    advisory: { fg: "#F2C14E", bg: "rgba(242, 193, 78, 0.13)", border: "rgba(242, 193, 78, 0.30)" },
-    spelling: { fg: "#8FB3DE", bg: "rgba(143, 179, 222, 0.13)", border: "rgba(143, 179, 222, 0.28)" },
-  } satisfies Record<"advisory" | "spelling", SeverityVisual>,
+  /** Accentkleur voor de spelling-kaarten op glass (kleurenblind-veilig, rustig blauw). */
+  spelling: {
+    fg: "#8FB3DE",
+    bg: "rgba(143, 179, 222, 0.13)",
+    border: "rgba(143, 179, 222, 0.28)",
+  } satisfies AccentVisual,
 
   /** Redline-diff op donker: weggehaald (doorgehaald) en voorgesteld (ingevoegd). */
   diff: {

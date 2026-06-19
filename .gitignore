@@ -26,3 +26,6 @@ HANDOFF.md
 
 # Temp / scratch
 temp_test_*.js
+
+# Office lock files (created while a .docx/.xlsx/.pptx is open)
+~$*

@@ -133,16 +133,6 @@ module.exports = async (env, options) => {
         options: env.WEBPACK_BUILD || options.https !== undefined ? options.https : await getHttpsOptions(),
       },
       port: process.env.npm_package_config_dev_server_port || 3000,
-      // Proxy /api/* naar de LLM-backend (Agent C) op poort 3001
-      // webpack-dev-server v5 verwacht een array voor de proxy-optie
-      proxy: [
-        {
-          context: ["/api"],
-          target: "http://localhost:3001",
-          secure: false,
-          changeOrigin: true,
-        },
-      ],
     },
   };
 

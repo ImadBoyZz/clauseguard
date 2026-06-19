@@ -44,9 +44,10 @@ const App: React.FC<AppProps> = () => {
     issues,
     status,
     error,
-    useLlm,
+    lang,
+    langStale,
     runScan,
-    setUseLlm,
+    setLang,
     applyOne,
     applyAll,
     dismissOne,
@@ -83,9 +84,10 @@ const App: React.FC<AppProps> = () => {
         <Toolbar
           issues={issues}
           status={status}
-          useLlm={useLlm}
+          lang={lang}
+          langStale={langStale}
           onScan={runScan}
-          onToggleLlm={setUseLlm}
+          onLangChange={setLang}
           onApplyAll={applyAll}
           onAcceptAll={acceptAllChanges}
           onRejectAll={rejectAllChanges}

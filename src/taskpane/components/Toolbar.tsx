@@ -1,23 +1,26 @@
 import * as React from "react";
-import { Button, Switch, makeStyles, tokens } from "@fluentui/react-components";
+import { Button, Radio, RadioGroup, makeStyles, tokens } from "@fluentui/react-components";
 import {
   DocumentSearchRegular,
   CheckmarkCircleRegular,
   DismissCircleRegular,
   ArrowSyncRegular,
+  InfoRegular,
 } from "@fluentui/react-icons";
-import { Issue, hasSuggestion } from "../core/types";
+import { Issue, LangMode, hasSuggestion } from "../core/types";
 import { isReviewSupported } from "../core/trackChanges";
 import { cg } from "../theme";
 
 interface ToolbarProps {
   issues: Issue[];
   status: "idle" | "scanning" | "applying" | "ready";
-  /** Of de AI-laag (grammatica/stijl) meedraait bij de volgende scan. */
-  useLlm: boolean;
+  /** Gekozen controle-taalstand. */
+  lang: LangMode;
+  /** Taalstand gewijzigd sinds de laatste scan (toont een "scan opnieuw"-hint). */
+  langStale: boolean;
   onScan: () => void;
-  /** Wisselt de AI-laag aan/uit (persistente voorkeur, zie de hook). */
-  onToggleLlm: (value: boolean) => void;
+  /** Wisselt de controle-taalstand (persistente voorkeur, zie de hook). */
+  onLangChange: (mode: LangMode) => void;
   onApplyAll: () => void;
   onAcceptAll: () => void;
   onRejectAll: () => void;
@@ -52,6 +55,24 @@ const useStyles = makeStyles({
       animationName: "none",
     },
   },
+  langRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: tokens.spacingHorizontalS,
+  },
+  langLabel: {
+    fontSize: tokens.fontSizeBase200,
+    fontWeight: tokens.fontWeightSemibold,
+    color: tokens.colorNeutralForeground2,
+    flexShrink: 0,
+  },
+  staleHint: {
+    display: "flex",
+    alignItems: "center",
+    gap: tokens.spacingHorizontalXXS,
+    fontSize: tokens.fontSizeBase200,
+    color: cg.spark,
+  },
   actionRow: {
     display: "flex",
     alignItems: "center",
@@ -75,13 +96,14 @@ const useStyles = makeStyles({
   },
 });
 
-/** Bovenste actiebalk: scan, bulktoepassing en (indien beschikbaar) de review-knoppen. */
+/** Bovenste actiebalk: scan, taalkiezer, bulktoepassing en (indien beschikbaar) de review-knoppen. */
 const Toolbar: React.FC<ToolbarProps> = ({
   issues,
   status,
-  useLlm,
+  lang,
+  langStale,
   onScan,
-  onToggleLlm,
+  onLangChange,
   onApplyAll,
   onAcceptAll,
   onRejectAll,
@@ -118,14 +140,29 @@ const Toolbar: React.FC<ToolbarProps> = ({
         {isScanning ? "Document scannen…" : hasIssues ? "Opnieuw scannen" : "Scan document"}
       </Button>
 
-      {/* Tellen we grammatica/stijl-adviezen mee? Uit = alleen exacte spelfouten in de telling
-          (de wobbel-bron staat dan uit). De spelsuggesties blijven los hiervan slim (context-rerank). */}
-      <Switch
-        checked={useLlm}
-        disabled={isBusy}
-        onChange={(_ev, data) => onToggleLlm(data.checked)}
-        label={useLlm ? "AI-adviezen: grammatica & stijl" : "Alleen spelfouten tellen (exact)"}
-      />
+      {/* Taalkiezer: bepaalt waartegen gespeld wordt. "Auto" = per-paragraaf detectie (soepel);
+          "NL"/"EN" = forceer die taal, strikt (anderstalige woorden worden als spelfout geflagd). */}
+      <div className={styles.langRow}>
+        <span className={styles.langLabel}>Taal</span>
+        <RadioGroup
+          layout="horizontal"
+          value={lang}
+          disabled={isBusy}
+          onChange={(_ev, data) => onLangChange(data.value as LangMode)}
+        >
+          <Radio value="auto" label="Auto" />
+          <Radio value="nl" label="NL" />
+          <Radio value="en" label="EN" />
+        </RadioGroup>
+      </div>
+
+      {/* De wissel werkt pas door bij de volgende scan. */}
+      {langStale && (
+        <span className={styles.staleHint}>
+          <InfoRegular fontSize={14} aria-hidden />
+          Taal gewijzigd — scan opnieuw.
+        </span>
+      )}
 
       {/* Bulktoepassing + samenvatting (zodra er issues zijn) */}
       {hasIssues && (

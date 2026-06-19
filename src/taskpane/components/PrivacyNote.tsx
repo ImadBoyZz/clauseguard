@@ -4,8 +4,8 @@ import { LockClosedRegular } from "@fluentui/react-icons";
 import { cg } from "../theme";
 
 /**
- * Slanke privacy-strip onder de header. Maakt expliciet dat verwerking lokaal gebeurt
- * en de LLM-laag opt-in is — een vertrouwenssignaal dat past bij LegalFly's privacy-first
+ * Slanke privacy-strip onder de header. Maakt expliciet dat alle verwerking volledig lokaal
+ * en offline gebeurt — een vertrouwenssignaal dat past bij LegalFly's privacy-first
  * positionering, rustig gehouden zodat het de scan-actie niet overschreeuwt.
  */
 const useStyles = makeStyles({
@@ -42,7 +42,7 @@ const PrivacyNote: React.FC = () => {
     <div className={styles.strip}>
       <LockClosedRegular className={styles.icon} aria-hidden />
       <span className={styles.text}>
-        <span className={styles.strong}>Lokaal verwerkt.</span> AI-proeflezer is opt-in.
+        <span className={styles.strong}>Volledig lokaal verwerkt.</span> Niets verlaat je document.
       </span>
     </div>
   );

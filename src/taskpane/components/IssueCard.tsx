@@ -8,7 +8,7 @@ import {
   CheckmarkCircleFilled,
   DismissCircleFilled,
 } from "@fluentui/react-icons";
-import { Issue, IssueCategory } from "../core/types";
+import { Issue } from "../core/types";
 import { cg } from "../theme";
 
 interface IssueCardProps {
@@ -17,13 +17,6 @@ interface IssueCardProps {
   onDismiss: (issue: Issue) => void;
   onLocate: (issue: Issue) => void;
 }
-
-/** Mensvriendelijk categorielabel per check (de meta-rij van de kaart). */
-const CATEGORY_LABEL: Record<IssueCategory, string> = {
-  spelling: "Spelfout",
-  grammar: "Grammatica",
-  style: "Stijl",
-};
 
 const useStyles = makeStyles({
   card: {
@@ -144,25 +137,6 @@ const useStyles = makeStyles({
     fontSize: tokens.fontSizeBase300,
     lineHeight: tokens.lineHeightBase300,
   },
-  confidence: {
-    display: "inline-flex",
-    alignItems: "center",
-    alignSelf: "flex-start",
-    gap: "4px",
-    fontSize: tokens.fontSizeBase100,
-    color: tokens.colorNeutralForeground3,
-  },
-  confidenceTrack: {
-    width: "32px",
-    height: "3px",
-    borderRadius: tokens.borderRadiusCircular,
-    backgroundColor: tokens.colorNeutralStroke2,
-    overflow: "hidden",
-  },
-  confidenceFill: {
-    height: "100%",
-    backgroundColor: tokens.colorNeutralForeground3,
-  },
   actions: {
     display: "flex",
     flexWrap: "wrap",
@@ -171,13 +145,13 @@ const useStyles = makeStyles({
   },
 });
 
-/** Eén issue-kaart: severity-marker, redline-diff, het "waarom" en de acties. */
+/** Eén spelling-kaart: marker, redline-diff, het "waarom" en de acties. */
 const IssueCard: React.FC<IssueCardProps> = ({ issue, onAccept, onDismiss, onLocate }) => {
   const styles = useStyles();
   const isPending = issue.status === "pending";
   const isAccepted = issue.status === "accepted";
   const isDismissed = issue.status === "rejected";
-  const sev = cg.sev[issue.severity];
+  const sp = cg.spelling;
 
   const cardClass = [
     styles.card,
@@ -189,11 +163,11 @@ const IssueCard: React.FC<IssueCardProps> = ({ issue, onAccept, onDismiss, onLoc
 
   return (
     <article className={cardClass}>
-      {/* Meta: severity-dot + categorie + taal/status */}
+      {/* Meta: spelling-dot + label + taal/status */}
       <div className={styles.metaRow}>
-        <span className={styles.dot} style={{ backgroundColor: sev.fg }} aria-hidden />
-        <span className={styles.category} style={{ color: sev.fg }}>
-          {CATEGORY_LABEL[issue.category]}
+        <span className={styles.dot} style={{ backgroundColor: sp.fg }} aria-hidden />
+        <span className={styles.category} style={{ color: sp.fg }}>
+          Spelfout
         </span>
         <span className={styles.spacer} />
         {isPending && issue.language && (
@@ -232,19 +206,6 @@ const IssueCard: React.FC<IssueCardProps> = ({ issue, onAccept, onDismiss, onLoc
 
       {/* Het "waarom" — de kern van elke flag */}
       <p className={styles.explanation}>{issue.explanation}</p>
-
-      {/* Optioneel vertrouwen (vooral LLM-suggesties) */}
-      {issue.confidence !== undefined && (
-        <span className={styles.confidence}>
-          <span className={styles.confidenceTrack}>
-            <span
-              className={styles.confidenceFill}
-              style={{ width: `${Math.round(issue.confidence * 100)}%` }}
-            />
-          </span>
-          Betrouwbaarheid {Math.round(issue.confidence * 100)}%
-        </span>
-      )}
 
       {/* Acties */}
       <div className={styles.actions}>

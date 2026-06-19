@@ -1,63 +1,39 @@
 // ClauseGuard — gedeelde datatypes (single source of truth).
-// Alle modules (spelling via nspell, grammatica/stijl via de LLM-laag) produceren
-// `Issue`-objecten volgens dit contract; de UI consumeert ze. Wijzig dit type met beleid:
-// alles hangt eraan.
+// De add-in is volledig OFFLINE: de enige check is spellingcontrole via nspell (NL + EN).
+// Alle modules produceren `Issue`-objecten volgens dit contract; de UI consumeert ze.
+// Wijzig dit type met beleid: alles hangt eraan.
 
-/** Welke check de issue vond. */
-export type IssueCategory =
-  | "spelling" // nspell (offline woordenboek): niet-bestaande woorden
-  | "grammar" // LLM: congruentie (onderwerp-werkwoord), d/t-fouten, woordvolgorde, verbuiging
-  | "style"; // LLM: vaag/omslachtig/onhelder taalgebruik, zwakke woordkeuze, zinsbouw
+/** Taal van een fragment / van een geforceerde controle-stand. */
+export type Lang = "nl" | "en";
 
 /**
- * Severity-tier zoals getoond in de UI (gegroepeerd op ernst).
- * - "spelling"  → blauw/laag: spelfout (offline nspell)
- * - "advisory"  → geel/midden: grammatica- en stijladvies (AI-laag)
+ * Door de gebruiker gekozen controle-stand (de taalkiezer in de Toolbar).
+ * - "auto" → per-paragraaf taaldetectie; soepel: een woord is pas fout als GEEN van beide
+ *            woordenboeken het kent (Engelse termen in een NL-doc blijven correct).
+ * - "nl" / "en" → forceer die taal voor het hele document; STRIKT: alleen dat woordenboek
+ *            telt, anderstalige woorden worden bewust als spelfout geflagd.
  */
-export type Severity = "spelling" | "advisory";
+export type LangMode = "auto" | "nl" | "en";
 
 /** Levenscyclus van een suggestie in de task-pane. */
 export type IssueStatus = "pending" | "accepted" | "rejected";
 
-/** Taal van het fragment. */
-export type Lang = "nl" | "en";
-
-/** Welke engine de issue genereerde (voor debugging/telemetrie/audit-trail). */
-export type IssueSource = "nspell" | "llm";
-
 /**
- * Status van de AI-backend voor de UI-indicator.
- * - "ok"      → backend bereikbaar én een API-key aanwezig (AI-laag werkt echt).
- * - "nokey"   → backend draait, maar geen OPENROUTER_API_KEY → elke AI-scan blijft leeg.
- * - "offline" → backend niet bereikbaar (niet gestart).
- */
-export type AiStatus = "ok" | "nokey" | "offline";
-
-/**
- * Eén gedetecteerd probleem in het document.
+ * Eén gedetecteerde spelfout in het document.
  * `paragraphIndex` + `occurrence` laten de track-changes-laag de exacte Word.Range
- * terugvinden via body.search() (zie core/trackChanges.ts).
+ * terugvinden via een paragraaf-gescopete search (zie core/trackChanges.ts).
  */
 export interface Issue {
-  /** Stabiele unieke id (bv. `${source}-${paragraphIndex}-${occurrence}-${original}`). */
+  /** Stabiele unieke id (zie buildId in runChecks.ts). */
   id: string;
-  category: IssueCategory;
-  severity: Severity;
   /** Het exact geflagde tekstfragment zoals het in het document staat. */
   original: string;
-  /** Voorgestelde vervanging. Afwezig voor louter informatieve adviezen. */
+  /** Voorgestelde vervanging (nspell's beste gok). Afwezig als er geen suggestie is. */
   suggestion?: string;
-  /**
-   * Alternatieve spellingsuggesties (nspell's overige kandidaten, best-first). Alleen gevuld door
-   * de offline spelling-engine; voedt de context-rerank (core/spellRerank.ts) die er de zin-passende
-   * uit kiest. Afwezig/leeg voor niet-spelling issues.
-   */
-  candidates?: string[];
-  /** Uitleg in gewone taal: het "waarom" (LegalFly's #1 productwaarde). */
+  /** Uitleg in gewone taal: het "waarom" van de flag. */
   explanation: string;
-  /** Vertrouwen 0..1 (vooral relevant voor LLM-suggesties). */
-  confidence?: number;
-  language?: Lang;
+  /** Taal waartegen dit fragment gecontroleerd is (bepaalt de NL/EN-chip in de UI). */
+  language: Lang;
   /** Index van de paragraaf in het document (0-based). */
   paragraphIndex: number;
   /**
@@ -67,7 +43,6 @@ export interface Issue {
    */
   occurrence: number;
   status: IssueStatus;
-  source: IssueSource;
 }
 
 /** Eén paragraaf zoals uitgelezen uit het document. */
@@ -80,9 +55,7 @@ export interface DocParagraph {
 export interface ScanResult {
   issues: Issue[];
   paragraphs: DocParagraph[];
-  /** Of de LLM-laag is meegedraaid (false = offline-only run). */
-  usedLlm: boolean;
-  scannedAt: string; // ISO timestamp, gezet door de caller (Date is niet beschikbaar in sommige contexten)
+  scannedAt: string; // ISO timestamp, gezet door de caller
 }
 
 /**
@@ -93,21 +66,3 @@ export interface ScanResult {
 export function hasSuggestion(issue: Issue): boolean {
   return typeof issue.suggestion === "string" && issue.suggestion.length > 0;
 }
-
-/** Mapt een IssueCategory naar de UI-severity-tier. */
-export function severityForCategory(category: IssueCategory): Severity {
-  switch (category) {
-    case "spelling":
-      return "spelling";
-    case "grammar":
-    case "style":
-    default:
-      return "advisory";
-  }
-}
-
-/** Nederlandse labels voor de severity-badges in de UI. */
-export const SEVERITY_LABEL: Record<Severity, string> = {
-  spelling: "Spelling",
-  advisory: "Stijl",
-};

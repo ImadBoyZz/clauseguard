@@ -1,7 +1,6 @@
-import { useState, useCallback, useEffect } from "react";
-import { Issue, hasSuggestion, AiStatus } from "../core/types";
+import { useState, useCallback } from "react";
+import { Issue, LangMode, hasSuggestion } from "../core/types";
 import { runFullScan } from "../core/runChecks";
-import { checkAiHealth } from "../core/legalStyle";
 import {
   applyCorrections,
   selectIssueRange,
@@ -19,16 +18,17 @@ export interface ClauseGuardState {
   issues: Issue[];
   status: PaneStatus;
   error?: string;
-  useLlm: boolean;
+  /** Gekozen controle-stand: "auto" | "nl" | "en". */
+  lang: LangMode;
   /**
-   * Status van de AI-backend. `null` = nog niet gecontroleerd / AI-laag uit.
-   * "offline" of "nokey" met useLlm aan → de UI toont de bijbehorende melding.
+   * True als de taalstand is gewijzigd sinds de laatste scan én er nog resultaten staan.
+   * De UI toont dan een subtiele "scan opnieuw"-hint; de wissel werkt pas door bij de volgende scan.
    */
-  aiStatus: AiStatus | null;
+  langStale: boolean;
 }
 
 export interface ClauseGuardActions {
-  /** Start een volledige documentscan. */
+  /** Start een volledige documentscan in de huidige taalstand. */
   runScan(): Promise<void>;
   /** Pas één issue toe als tracked change en markeer als 'accepted'. */
   applyOne(issue: Issue): Promise<void>;
@@ -42,46 +42,42 @@ export interface ClauseGuardActions {
   acceptAllChanges(): Promise<void>;
   /** Wijs alle tracked changes af in het document (vereist WordApi 1.6). */
   rejectAllChanges(): Promise<void>;
-  /** Schakel de LLM-legal-style check aan of uit. */
-  setUseLlm(value: boolean): void;
+  /** Wijzig de controle-taalstand (persistente voorkeur). */
+  setLang(mode: LangMode): void;
 }
 
 /**
- * Stabiele signatuur om hetzelfde issue over scans heen te herkennen.
- * Wordt gebruikt om reeds verwerkte issues (toegepast/genegeerd) bij een nieuwe scan
- * niet opnieuw als 'open' te tonen.
+ * Stabiele signatuur om hetzelfde issue over scans heen te herkennen, zodat reeds verwerkte
+ * issues (toegepast/genegeerd) bij een nieuwe scan niet opnieuw als 'open' verschijnen.
  *
- * BEWUST ZONDER `occurrence`: dat veld wordt ELKE scan opnieuw berekend uit de actuele
- * tekstposities (runChecks.assignOccurrences). Na een edit kan hetzelfde issue dus een ander
- * occurrence-getal krijgen, waardoor de signatuur niet meer matcht en de carry-over hapert
- * (verdwijnende of dubbele kaarten). Identiteit = (source, paraIndex, category, original, suggestion).
+ * BEWUST ZONDER `occurrence`: dat veld wordt elke scan opnieuw berekend uit de actuele
+ * tekstposities. `language` zit er wél in: wisselt de gebruiker van taalstand, dan kan hetzelfde
+ * fragment in een andere taal beoordeeld worden — dat telt als een ander issue.
  */
 function issueSignature(issue: Issue): string {
-  return [
-    issue.source,
-    issue.paragraphIndex,
-    issue.category,
-    issue.original,
-    issue.suggestion ?? "",
-  ].join("|");
+  return [issue.paragraphIndex, issue.language, issue.original, issue.suggestion ?? ""].join("|");
 }
 
-/** localStorage-sleutel voor de AI-laag-voorkeur (overleeft het sluiten/heropenen van het document). */
-const USE_LLM_KEY = "clauseguard.useLlm";
+/** localStorage-sleutel voor de taalstand-voorkeur (overleeft het sluiten/heropenen van het document). */
+const LANG_KEY = "clauseguard.lang.v1";
 
-/** Leest de opgeslagen AI-laag-voorkeur; default AAN als er niets staat of localStorage ontbreekt. */
-function readUseLlmPref(): boolean {
+/** Geldige taalstanden — defensief tegen een corrupte/oude localStorage-waarde. */
+const VALID_MODES: LangMode[] = ["auto", "nl", "en"];
+
+/** Leest de opgeslagen taalstand-voorkeur; default "auto". */
+function readLangPref(): LangMode {
   try {
-    return localStorage.getItem(USE_LLM_KEY) !== "false";
+    const raw = localStorage.getItem(LANG_KEY);
+    return raw && (VALID_MODES as string[]).includes(raw) ? (raw as LangMode) : "auto";
   } catch {
-    return true;
+    return "auto";
   }
 }
 
-/** Bewaart de AI-laag-voorkeur (best-effort; faalt stil als localStorage niet schrijfbaar is). */
-function writeUseLlmPref(value: boolean): void {
+/** Bewaart de taalstand-voorkeur (best-effort; faalt stil als localStorage niet schrijfbaar is). */
+function writeLangPref(value: LangMode): void {
   try {
-    localStorage.setItem(USE_LLM_KEY, String(value));
+    localStorage.setItem(LANG_KEY, value);
   } catch {
     // localStorage niet beschikbaar: de voorkeur leeft alleen deze sessie
   }
@@ -92,26 +88,9 @@ export function useClauseGuard(): ClauseGuardState & ClauseGuardActions {
   const [issues, setIssues] = useState<Issue[]>([]);
   const [status, setStatus] = useState<PaneStatus>("idle");
   const [error, setError] = useState<string | undefined>(undefined);
-  const [useLlm, setUseLlmState] = useState<boolean>(readUseLlmPref);
-  const [aiStatus, setAiStatus] = useState<AiStatus | null>(null);
-
-  /** Pingt de backend-heartbeat als de AI-laag aan staat; reset naar null als hij uit staat. */
-  const refreshAiHealth = useCallback(async (enabled: boolean) => {
-    setAiStatus(enabled ? await checkAiHealth() : null);
-  }, []);
-
-  // Controleer de backend bij mount en telkens als de AI-switch wisselt. De `active`-vlag
-  // voorkomt een setState-na-unmount als de fetch nog loopt bij het sluiten van het paneel.
-  useEffect(() => {
-    let active = true;
-    void (async () => {
-      const status = useLlm ? await checkAiHealth() : null;
-      if (active) setAiStatus(status);
-    })();
-    return () => {
-      active = false;
-    };
-  }, [useLlm]);
+  const [lang, setLangState] = useState<LangMode>(readLangPref);
+  // Taalstand waarin de huidige resultaten gescand zijn (null = nog niet gescand).
+  const [scannedLang, setScannedLang] = useState<LangMode | null>(null);
 
   /** Hulpfunctie: vervang één issue in de lijst op basis van id. */
   const updateIssue = useCallback((id: string, patch: Partial<Issue>) => {
@@ -121,21 +100,14 @@ export function useClauseGuard(): ClauseGuardState & ClauseGuardActions {
   const runScan = useCallback(async () => {
     setStatus("scanning");
     setError(undefined);
-    // Herijk de backend-status: de gebruiker kan de backend net gestart hebben.
-    void refreshAiHealth(useLlm);
     try {
-      const result = await runFullScan({ useLlm });
+      const result = await runFullScan({ mode: lang });
       setIssues((prev) => {
         // Behoud reeds verwerkte issues (toegepast of genegeerd) en filter hun duplicaten uit de
-        // verse scan, zodat opgeloste/genegeerde problemen niet opnieuw opduiken — ook op
-        // Word-builds waar de reviewed-tekst-leesweg (wordDocument.ts) faalt en de ruwe tekst nog
-        // tracked deletions bevat.
-        //
-        // MAAR: draag een verwerkt issue alléén over zolang z'n fragment NOG in de (verse)
-        // paragraaftekst staat. Werkt de gebruiker die tekst weg of wijzigt 'm, dan vervalt het
-        // oude issue. Zonder deze check zou de lijst "bevriezen": oude verwerkte issues blijven de
-        // verse scan onderdrukken (en een nieuw geïntroduceerde fout op dezelfde plek zou nooit
-        // verschijnen) — precies het gemelde gedrag "lijst verandert niet na een edit".
+        // verse scan, zodat opgeloste/genegeerde problemen niet opnieuw opduiken — maar draag een
+        // verwerkt issue alléén over zolang z'n fragment NOG in de (verse) paragraaftekst staat.
+        // Werkt de gebruiker die tekst weg of wijzigt 'm, dan vervalt het oude issue (anders zou de
+        // lijst "bevriezen" en zou een nieuwe fout op dezelfde plek nooit verschijnen).
         const stillPresent = (iss: Issue): boolean =>
           (result.paragraphs[iss.paragraphIndex]?.text ?? "").indexOf(iss.original) !== -1;
         const resolved = prev.filter((iss) => iss.status !== "pending" && stillPresent(iss));
@@ -143,12 +115,13 @@ export function useClauseGuard(): ClauseGuardState & ClauseGuardActions {
         const fresh = result.issues.filter((iss) => !resolvedSigs.has(issueSignature(iss)));
         return [...resolved, ...fresh];
       });
+      setScannedLang(lang);
       setStatus("ready");
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
       setStatus("ready");
     }
-  }, [useLlm, refreshAiHealth]);
+  }, [lang]);
 
   const applyOne = useCallback(
     async (issue: Issue) => {
@@ -216,9 +189,9 @@ export function useClauseGuard(): ClauseGuardState & ClauseGuardActions {
     setStatus("applying");
     try {
       await rejectAllTrackedChanges();
-      // Alle tracked changes zijn teruggedraaid → onze toegepaste correcties bestaan niet
-      // meer in het document. Zet die issues terug op 'pending' zodat de lijst klopt en ze
-      // opnieuw toegepast kunnen worden.
+      // Alle tracked changes zijn teruggedraaid → onze toegepaste correcties bestaan niet meer in
+      // het document. Zet die issues terug op 'pending' zodat de lijst klopt en ze opnieuw
+      // toegepast kunnen worden.
       setIssues((prev) =>
         prev.map((iss) => (iss.status === "accepted" ? { ...iss, status: "pending" } : iss))
       );
@@ -229,17 +202,21 @@ export function useClauseGuard(): ClauseGuardState & ClauseGuardActions {
     }
   }, []);
 
-  const setUseLlm = useCallback((value: boolean) => {
-    setUseLlmState(value);
-    writeUseLlmPref(value);
+  const setLang = useCallback((value: LangMode) => {
+    setLangState(value);
+    writeLangPref(value);
   }, []);
+
+  // De wissel werkt pas door bij de volgende scan: toon een hint zolang de huidige resultaten in
+  // een andere taalstand gescand zijn.
+  const langStale = issues.length > 0 && scannedLang !== null && scannedLang !== lang;
 
   return {
     issues,
     status,
     error,
-    useLlm,
-    aiStatus,
+    lang,
+    langStale,
     runScan,
     applyOne,
     applyAll,
@@ -247,6 +224,6 @@ export function useClauseGuard(): ClauseGuardState & ClauseGuardActions {
     locate,
     acceptAllChanges,
     rejectAllChanges,
-    setUseLlm,
+    setLang,
   };
 }

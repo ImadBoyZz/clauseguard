@@ -13,7 +13,7 @@ import enDic from "dict-en-dic";
 import nlAff from "dict-nl-aff";
 import nlDic from "dict-nl-dic";
 
-import { DocParagraph, Issue, IssueSource, Lang } from "./types";
+import { DocParagraph, Issue, Lang, LangMode } from "./types";
 
 // --- Module-scoped cache ---
 
@@ -124,8 +124,14 @@ function pickBestSuggestion(token: string, suggestions: string[]): string | unde
 /**
  * Controleert paragrafen op spelfouten en retourneert een Issue per fout token.
  * occurrence is 0 als placeholder — runChecks.ts overschrijft dit globaal.
+ *
+ * `mode` bepaalt de taalstrategie (zie LangMode):
+ * - "auto"  → per paragraaf detecteren; SOEPEL: een woord is pas fout als geen van beide
+ *             woordenboeken het kent (Engelse termen in een NL-doc blijven correct).
+ * - "nl"/"en" → forceer die taal voor élke paragraaf; STRIKT: alleen dat ene woordenboek telt,
+ *             zodat anderstalige woorden bewust als spelfout worden geflagd ("behandel alles als X").
  */
-export function checkParagraphs(paragraphs: DocParagraph[]): Issue[] {
+export function checkParagraphs(paragraphs: DocParagraph[], mode: LangMode): Issue[] {
   if (!spellNl || !spellEn) return [];
 
   const issues: Issue[] = [];
@@ -133,17 +139,18 @@ export function checkParagraphs(paragraphs: DocParagraph[]): Issue[] {
   for (const para of paragraphs) {
     if (!para.text.trim()) continue;
 
-    const lang = detectLanguage(para.text);
+    // In "auto" detecteren we per paragraaf; anders forceert de gebruiker één taal document-breed.
+    const lang: Lang = mode === "auto" ? detectLanguage(para.text) : mode;
     const spell = lang === "nl" ? spellNl : spellEn;
     const tokens = tokenize(para.text);
 
     for (const token of tokens) {
-      // Een token is pas een spelfout als GEEN van beide woordenboeken het kent. In gemengde
-      // NL/EN-documenten kan een paragraaf als de "verkeerde" taal gedetecteerd worden (bv. een
-      // EN-paragraaf met het NL-woord "Artikel"); puur tegen de gedetecteerde taal checken gaf dan
-      // een valse fout met een onzin-suggestie ("Artikel" → "Ariel"). De gedetecteerde taal bepaalt
-      // hieronder nog wél welke speller de suggesties en de language-tag levert.
-      if (spellNl.correct(token) || spellEn.correct(token)) continue;
+      // "auto" = soepel (of-of, voorkomt valse fouten op anderstalige termen in gemengde docs);
+      // geforceerde taal = strikt (alleen het gekozen woordenboek). De gekozen `spell` levert
+      // hoe dan ook de suggesties en de language-tag.
+      const known =
+        mode === "auto" ? spellNl.correct(token) || spellEn.correct(token) : spell.correct(token);
+      if (known) continue;
 
       const suggestions = spell.suggest(token);
       const suggestion = pickBestSuggestion(token, suggestions);
@@ -152,24 +159,16 @@ export function checkParagraphs(paragraphs: DocParagraph[]): Issue[] {
         ? `Mogelijke spelfout — bedoelde je "${suggestion}"?`
         : `Mogelijke spelfout (geen suggestie beschikbaar).`;
 
-      // Tijdelijke id; wordt overschreven door runChecks.ts
-      const tempId = `nspell-${para.index}-0-${token}`;
-
       issues.push({
-        id: tempId,
-        category: "spelling",
-        severity: "spelling",
+        // Tijdelijke id; wordt overschreven door runChecks.ts
+        id: `nspell-${para.index}-0-${token}`,
         original: token,
         suggestion,
-        // De ruwe nspell-kandidaten (best-first, top 5): de offline `suggestion` is de #1-gok,
-        // de context-rerank kan hier een zin-passender keuze uit halen (bv. "parties" i.p.v. "partied").
-        candidates: suggestions.slice(0, 5),
         explanation,
         language: lang,
         paragraphIndex: para.index,
         occurrence: 0,
         status: "pending",
-        source: "nspell" as IssueSource,
       });
     }
   }
