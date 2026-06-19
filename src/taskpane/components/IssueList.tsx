@@ -49,7 +49,7 @@ const useStyles = makeStyles({
     gap: tokens.spacingVerticalS,
     width: "100%",
     paddingTop: tokens.spacingVerticalM,
-    borderTop: `1px solid ${tokens.colorNeutralStroke2}`,
+    borderTop: `1px solid ${cg.glass.stroke}`,
   },
   legendRow: {
     display: "flex",
@@ -84,9 +84,10 @@ const useStyles = makeStyles({
     display: "flex",
     flexDirection: "column",
     gap: tokens.spacingVerticalS,
-    padding: tokens.spacingVerticalM,
-    border: `1px solid ${tokens.colorNeutralStroke2}`,
-    borderRadius: tokens.borderRadiusMedium,
+    padding: tokens.spacingVerticalL,
+    backgroundColor: cg.glass.fill,
+    border: `1px solid ${cg.glass.stroke}`,
+    borderRadius: cg.radius,
   },
   skeletonMeta: { width: "45%" },
   skeletonDiff: { height: "44px", borderRadius: tokens.borderRadiusMedium },
@@ -104,12 +105,12 @@ const useStyles = makeStyles({
     display: "flex",
     alignItems: "center",
     gap: tokens.spacingHorizontalS,
-    padding: `${tokens.spacingVerticalS} ${tokens.spacingHorizontalM}`,
+    padding: `${tokens.spacingVerticalM} ${tokens.spacingHorizontalM}`,
     marginTop: tokens.spacingVerticalM,
     marginBottom: tokens.spacingVerticalS,
     backgroundColor: cg.diff.addBg,
-    border: `1px solid ${tokens.colorNeutralStroke2}`,
-    borderRadius: tokens.borderRadiusMedium,
+    border: `1px solid ${cg.glass.stroke}`,
+    borderRadius: cg.radius,
   },
   resolvedText: {
     fontSize: tokens.fontSizeBase200,
@@ -123,7 +124,7 @@ const useStyles = makeStyles({
     paddingBottom: tokens.spacingVerticalXS,
     marginTop: tokens.spacingVerticalL,
     marginBottom: tokens.spacingVerticalS,
-    borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
+    borderBottom: `1px solid ${cg.glass.stroke}`,
   },
   groupDot: {
     width: "8px",
@@ -145,12 +146,11 @@ const useStyles = makeStyles({
 });
 
 /** Volgorde van de severity-groepen in de lijst (zwaarste eerst). */
-const SEVERITY_ORDER: Severity[] = ["critical", "advisory", "spelling"];
+const SEVERITY_ORDER: Severity[] = ["advisory", "spelling"];
 
 /** Korte omschrijving per tier voor de onboarding-legenda. */
 const SEVERITY_DESC: Record<Severity, string> = {
-  critical: "Juridisch risico, zoals inconsistente gedefinieerde termen.",
-  advisory: "Grammatica, stijl, tegenstrijdigheden en mogelijke feitfouten (AI-laag).",
+  advisory: "Grammatica, zinsbouw en stijl (AI-laag).",
   spelling: "Spelfouten in Nederlands en Engels.",
 };
 
@@ -191,8 +191,8 @@ const IssueList: React.FC<IssueListProps> = ({
         <DocumentSearchRegular className={styles.emptyIcon} aria-hidden />
         <h2 className={styles.emptyTitle}>Klaar om te controleren</h2>
         <p className={styles.emptyBody}>
-          Scan het document op spelling, stijl en inconsistente definities. Elke bevinding krijgt
-          een suggestie en het waarom.
+          Scan het document op spelling, grammatica en stijl. Elke bevinding krijgt een suggestie en
+          het waarom.
         </p>
         <div className={styles.legend}>
           {SEVERITY_ORDER.map((sev) => (
@@ -219,7 +219,7 @@ const IssueList: React.FC<IssueListProps> = ({
       acc[sev] = issues.filter((i) => i.severity === sev);
       return acc;
     },
-    { critical: [], advisory: [], spelling: [] }
+    { advisory: [], spelling: [] }
   );
 
   const allResolved = issues.every((i) => i.status !== "pending");

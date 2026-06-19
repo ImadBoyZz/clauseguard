@@ -2,7 +2,7 @@ import * as React from "react";
 import { createRoot } from "react-dom/client";
 import App from "./components/App";
 import { FluentProvider } from "@fluentui/react-components";
-import { clauseGuardLightTheme } from "./theme";
+import { clauseGuardDarkTheme } from "./theme";
 
 /* global document, Office, module, require, HTMLElement */
 
@@ -14,7 +14,7 @@ const root = rootElement ? createRoot(rootElement) : undefined;
 /* Render application after Office initializes */
 Office.onReady(() => {
   root?.render(
-    <FluentProvider theme={clauseGuardLightTheme}>
+    <FluentProvider theme={clauseGuardDarkTheme}>
       <App title={title} />
     </FluentProvider>
   );

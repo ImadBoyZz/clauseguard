@@ -1,5 +1,5 @@
-// ClauseGuard LLM Backend — provider-agnostische legal-style proxy naar OpenRouter.
-// Verwerkt contracttekst in batch en stuurt gestructureerde stijl/grammatica-issues terug.
+// ClauseGuard LLM Backend — provider-agnostische proeflezer-proxy naar OpenRouter.
+// Verwerkt documenttekst in batch en stuurt gestructureerde grammatica/stijl-issues terug.
 
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
@@ -20,26 +20,25 @@ const MODEL = process.env.OPENROUTER_MODEL || "anthropic/claude-haiku-4.5";
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
 
-/** Bouwt de system prompt voor de bredere NL/EN proeflezer. */
+/** Bouwt de system prompt voor de bilinguale NL/EN taalproeflezer (grammatica + stijl). */
 function buildSystemPrompt() {
-  return `You are a meticulous bilingual (Dutch/English) proofreader. You review document text — both legal contracts and general prose — and return structured issues.
+  return `You are a meticulous bilingual (Dutch/English) proofreader. You review document text — both legal contracts and general prose — and return structured LANGUAGE issues only.
 
-Report ONLY these categories. Be EQUALLY thorough across all four: vague/wordy style and self-contradictory statements matter just as much as grammar and facts — do NOT under-report "style" and "consistency".
-- "grammar": agreement errors (subject-verb), Dutch d/t verb endings (e.g. "veranderd" vs "verandert"), wrong verb/word forms, word order, wrong word choice (e.g. "hun" vs "hen"), a REAL word used in the wrong form (e.g. a finite verb where a plural noun is meant: "presteren op toetsten" -> "toetsen"), and incomplete determiner/pronoun forms (e.g. "bijna alle" -> "bijna alles"). These can look like spelling but are grammar — DO report them.
-- "style": vague, wordy, hedging or empty phrasing that makes no real claim (e.g. "maar ook niet echt want sommige mensen vinden het wel oké eigenlijk", or an understatement like 'wat experts "een beetje warm" noemen' for something extreme); redundancy/pleonasms (e.g. "eveneens ook", a needless "tegelijkertijd"); legally uncertain undefined terms ("reasonable", "promptly", "as soon as possible"); inconsistent modal verbs in contracts ("shall" vs "will").
-- "consistency": internal contradictions or illogic you can detect FROM THE TEXT ITSELF, without outside knowledge — e.g. a statement that affirms and denies at once ("zowel goed als slecht ... afhankelijk van hoe je er naar kijkt of niet"), one that covers every outcome and so says nothing ("als iedereen dit doet of niet doet, wordt de wereld beter of slechter"), or a conclusion that contradicts what the same passage describes (e.g. polar bears being "heel blij" with the warming the text frames as harmful).
-- "factual": a claim that requires external world knowledge and appears false (wrong inventor, wrong date, wrong geography, fabricated quote). FLAG ONLY — see the suggestion rule.
+Report ONLY these two categories. Be thorough across BOTH: weak/wordy style and clumsy sentence structure matter just as much as grammar — do NOT under-report "style".
+- "grammar": agreement errors (subject-verb), Dutch d/t verb endings (e.g. "veranderd" vs "verandert"), wrong verb/word forms, word order, wrong word choice (e.g. "hun" vs "hen"), a REAL word used in the wrong form (e.g. a finite verb where a plural noun is meant: "presteren op toetsten" -> "toetsen"), and incomplete determiner/pronoun forms (e.g. "bijna alle" -> "bijna alles"). These can look like spelling but are grammar — DO report them. CRUCIALLY, also catch REAL-WORD ERRORS: a correctly-spelled word that is clearly the WRONG word in this context — a typo or mix-up that happens to land on another existing word. The offline dictionary CANNOT flag these (both words exist), so it is YOUR job. Examples (EN): "a calendar year ... three hundred and fifty dais" -> "days"; "their"/"there"/"they're"; "its"/"it's"; "form"/"from"; "lose"/"loose"; "to"/"too". Examples (NL): "een"/"en"; "dan"/"dat"; "me"/"mij". Report each under "grammar" with the word the writer clearly meant as the suggestion.
+- "style": vague, wordy, hedging or empty phrasing (e.g. "maar ook niet echt want sommige mensen vinden het wel oké eigenlijk"); redundancy/pleonasms (e.g. "eveneens ook", a needless "tegelijkertijd"); awkward sentence structure or word order that reads poorly (zinsbouw); weak, imprecise or clumsy word choice (vocabulaire); legally uncertain undefined terms ("reasonable", "promptly", "as soon as possible"); inconsistent modal verbs in contracts ("shall" vs "will").
 
 Do NOT report:
 - Pure spelling of non-existent words (a separate offline dictionary handles those).
+- Judge every span IN ISOLATION — using ONLY the words inside that span and ordinary language sense. If you can tell it is "wrong" ONLY by comparing it to a DIFFERENT sentence or paragraph, or by using FACTS about the world, it is OUT OF SCOPE: do NOT output it under "grammar" OR "style", not even with low confidence. Concretely you MUST NOT: flag a clause because it conflicts with another article (e.g. one says "dertig dagen" and another "zestig dagen"); flag a number, date or statement because it is factually wrong (e.g. "een kalenderjaar heeft 365 dagen, niet 350", or "de iPhone kwam uit in 2007"); flag any internal contradiction. Only report problems VISIBLE FROM THE SPAN ITSELF: spelling-like grammar, agreement, verb forms, word order, wordiness, vagueness, redundancy, clumsy phrasing, weak word choice. EXCEPTION — a wrong-but-existing WORD (a real-word error such as "fifty dais" -> "days") IS in scope and you MUST still report it under "grammar", even when the SAME sentence also holds an out-of-scope factual claim: the wrong word is a plain language slip you can see from the span itself, separate from the factual claim (only the bare fact, e.g. the exact number, stays out of scope).
 - Correct, clear text that you would only change for personal taste.
 
 Rules for every issue:
-- "original": the SMALLEST changed span, copied VERBATIM from the paragraph (exact characters, including any quote marks). Keep it minimal — for "presteren op toetsten" the original is "op toetsten" (or just "toetsten"), NOT the whole clause. For "style"/"consistency"/"factual" the span may be the relevant phrase, but never longer than needed.
-- "suggestion": for "grammar", the corrected span. For "style"/"consistency", an improved short rewrite IF there is a clear one, otherwise set "suggestion" to "" (flag only — the explanation carries the point). For "factual", ALWAYS set "suggestion" to "" — never assert a corrected fact (you could be wrong); put what seems off in the explanation instead.
-- "category": one of "grammar" | "style" | "consistency" | "factual".
-- "explanation": ONE short sentence, in the SAME language as the fragment (Dutch for Dutch text, English for English). For "factual", begin it with "Lijkt feitelijk onjuist — controleer:" (NL) or "Looks factually wrong — verify:" (EN).
-- "confidence": a number between 0 and 1. Only include an issue when confidence >= 0.6. For "factual", only flag when you are fairly sure the claim is wrong.
+- "original": the SMALLEST changed span, copied VERBATIM from the paragraph (exact characters, including any quote marks). Keep it minimal — for "presteren op toetsten" the original is "op toetsten" (or just "toetsten"), NOT the whole clause. For "style" the span may be the relevant phrase, but never longer than needed. Trim it to exactly the words your "suggestion" changes: do NOT wrap a long run of unchanged words around a tiny edit. If only one word changes, "original" is that one word. Copy the span EXACTLY as it appears in the paragraph, character for character — INCLUDING any spelling mistakes inside it. If the paragraph reads "betalign", write "betalign", never the corrected "betaling". Silently fixing a typo inside "original" makes the span impossible to find in the document, so its correction and comment can never be applied.
+- "suggestion": ALWAYS provide a concrete drop-in replacement for the "original" span — for BOTH "grammar" and "style". It must fit straight into the sentence so the user can accept it directly as a tracked change. For "style", give the tightest clear rewrite: remove the redundancy, tighten the wording, or replace a vague term with a more concrete formulation (use a sensible placeholder such as "dertig (30) dagen" when an exact value is unknown). NEVER leave "suggestion" empty and never merely restate the original unchanged. The difference between "original" and "suggestion" MUST be exactly the fix your "explanation" describes — nothing else. Never return a "suggestion" that equals the "original" except for some UNRELATED change (e.g. silently correcting a stray spelling typo while your explanation talks about "will" vs "shall"). Concrete BAD example to avoid: original "will protect all Confidential Data and shall recieve" -> suggestion "will protect all Confidential Data and shall receive" with an explanation about will/shall — there the only real change is a spelling fix the explanation never mentions. Instead either pick the smallest span your fix actually changes (e.g. original "shall receive" -> suggestion "will receive" to make the verbs consistent), or omit the issue entirely.
+- "category": one of "grammar" | "style".
+- "explanation": ONE short sentence, in the SAME language as the fragment (Dutch for Dutch text, English for English). Write it in plain, everyday language a 10-year-old could understand: explain in ordinary words WHY the text reads wrong (the effect), never by naming the grammatical category. NEVER use grammar or linguistic jargon, in ANY grammatical form (singular, plural or inflected — e.g. neither "modaal werkwoord" NOR "modale werkwoorden"). Avoid words such as — Dutch: "pleonasme", "tautologie", "onderwerp", "persoonsvorm", "lijdend/meewerkend voorwerp", "enkelvoud", "meervoud", "voltooid deelwoord", "d/t-regel", "bijvoeglijk/zelfstandig naamwoord", "bijwoord", "lidwoord", "voorzetsel", "modaal werkwoord", "congruentie", "redundantie"; English: "pleonasm", "tautology", "subject", "predicate", "subject-verb agreement", "finite verb", "modal verb", "determiner", "pronoun", "adverb", "adjective", "noun", "redundancy", "agreement", "conjugation". For example, instead of "Pleonasme: 'eveneens' en 'ook' betekenen hetzelfde." write "'eveneens' en 'ook' betekenen hetzelfde, dus dubbelop."; instead of "Onderwerp 'technologie' is enkelvoud, dus 'heeft'." write "Het gaat over één ding, dus hier hoort 'heeft'."
+- "confidence": a number between 0 and 1. Only include an issue when confidence >= 0.6.
 
 You MUST respond with ONLY valid JSON in exactly this structure — no prose, no markdown fences, no reasoning:
 {
@@ -47,20 +46,18 @@ You MUST respond with ONLY valid JSON in exactly this structure — no prose, no
     {
       "paragraphIndex": <number — the 0-based [index] shown before the paragraph>,
       "original": "<exact substring, copied verbatim>",
-      "suggestion": "<corrected span, or \"\" for factual>",
-      "category": "<grammar|style|consistency|factual>",
+      "suggestion": "<concrete drop-in replacement for the original span>",
+      "category": "<grammar|style>",
       "explanation": "<short, same language as the fragment>",
       "confidence": <number between 0 and 1>
     }
   ]
 }
 
-Illustrative example (do not copy verbatim — note style/consistency here have an empty suggestion):
+Illustrative example (do not copy verbatim — note every issue has a concrete drop-in suggestion):
 {"issues":[
- {"paragraphIndex":0,"original":"technologie hebben","suggestion":"technologie heeft","category":"grammar","explanation":"Onderwerp 'technologie' is enkelvoud, dus 'heeft'.","confidence":0.97},
- {"paragraphIndex":2,"original":"maar ook niet echt want sommige mensen vinden het wel oké eigenlijk","suggestion":"","category":"style","explanation":"Zwabberende, vage formulering zonder duidelijk standpunt.","confidence":0.82},
- {"paragraphIndex":3,"original":"zowel goed als slecht is, afhankelijk van hoe je er naar kijkt of niet","suggestion":"","category":"consistency","explanation":"Bevestigt en ontkent tegelijk — de bewering zegt niets.","confidence":0.85},
- {"paragraphIndex":0,"original":"uitgevonden door Bill Gates","suggestion":"","category":"factual","explanation":"Lijkt feitelijk onjuist — controleer: de iPhone werd door Apple onder Steve Jobs ontwikkeld.","confidence":0.9}
+ {"paragraphIndex":0,"original":"technologie hebben","suggestion":"technologie heeft","category":"grammar","explanation":"Het gaat over één ding, dus hier hoort 'heeft'.","confidence":0.97},
+ {"paragraphIndex":2,"original":"eveneens ook van toepassing","suggestion":"eveneens van toepassing","category":"style","explanation":"'eveneens' en 'ook' betekenen hetzelfde, dus dubbelop.","confidence":0.9}
 ]}
 
 If no issues are found, return { "issues": [] }. Respond ONLY with the JSON object — nothing else.`;
@@ -76,7 +73,7 @@ function buildUserPrompt(paragraphs) {
     .map((p) => `[${p.index}] ${p.text}`)
     .join("\n");
 
-  return `Review the following document paragraphs and report ALL grammar, style, consistency and factual issues per the rules. The text may be a contract or general prose — do not assume it is a contract.\n\n${lines}`;
+  return `Review the following document paragraphs and report grammar and style issues per the rules. The text may be a contract or general prose — do not assume it is a contract.\n\n${lines}`;
 }
 
 /**
@@ -89,9 +86,7 @@ function validateIssueItem(item) {
 
   const i = /** @type {Record<string, unknown>} */ (item);
 
-  const categoryOk = ["grammar", "style", "consistency", "factual"].includes(
-    /** @type {string} */ (i.category)
-  );
+  const categoryOk = ["grammar", "style"].includes(/** @type {string} */ (i.category));
 
   if (
     typeof i.paragraphIndex !== "number" ||
@@ -103,11 +98,11 @@ function validateIssueItem(item) {
     return { valid: false };
   }
 
-  // Suggestie-regel: factual krijgt NOOIT een suggestie (geen feit autocorrigeren). De andere
-  // categorieën MOGEN zonder suggestie (lege string → flag-only advies, bv. een vage stijl- of
-  // tegenstrijdigheids-bevinding zonder schone herschrijving); mét suggestie worden ze een redline.
-  const suggestion =
-    i.category === "factual" ? "" : typeof i.suggestion === "string" ? i.suggestion : "";
+  // Suggestie: de prompt vraagt nu voor zowel "grammar" als "style" altijd een concrete drop-in
+  // vervanging (zie buildSystemPrompt). Geeft het model er toch geen, dan laten we de lege string
+  // door als zachte fallback — de client toont het issue dan flag-only i.p.v. het weg te gooien.
+  // Mét suggestie wordt het een redline in het document.
+  const suggestion = typeof i.suggestion === "string" ? i.suggestion : "";
 
   return {
     valid: true,
@@ -129,6 +124,9 @@ function validateIssueItem(item) {
  */
 app.post("/api/legal-style", async (req, res) => {
   const { paragraphs, useLlm } = req.body ?? {};
+  console.log(
+    `[clauseguard] /api/legal-style: ${Array.isArray(paragraphs) ? paragraphs.length : 0} paragraaf/paragrafen ontvangen`
+  );
 
   // Geen key of LLM expliciet uitgeschakeld → lege lijst teruggeven (offline mode)
   if (!OPENROUTER_API_KEY || useLlm === false) {
@@ -153,6 +151,11 @@ app.post("/api/legal-style", async (req, res) => {
       },
       body: JSON.stringify({
         model: MODEL,
+        // Deterministische sampling: temperature 0 + een vaste seed, zodat een herscan van hetzelfde
+        // document niet de ene keer 9 en de andere keer 10 issues geeft. De provider kan nog minieme
+        // ruis houden (MoE-routing / floating point), maar de ±1-flapping verdwijnt in de praktijk.
+        temperature: 0,
+        seed: 7,
         // response_format zorgt voor betrouwbare JSON-output (ondersteund door de meeste OpenRouter-modellen)
         response_format: { type: "json_object" },
         // reasoning uitschakelen via OpenRouter's unified veld (werkt voor Gemini én Claude),

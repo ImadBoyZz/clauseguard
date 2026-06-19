@@ -21,11 +21,8 @@ interface IssueCardProps {
 /** Mensvriendelijk categorielabel per check (de meta-rij van de kaart). */
 const CATEGORY_LABEL: Record<IssueCategory, string> = {
   spelling: "Spelfout",
-  term: "Gedefinieerde term",
   grammar: "Grammatica",
   style: "Stijl",
-  consistency: "Tegenstrijdigheid",
-  factual: "Mogelijke feitfout",
 };
 
 const useStyles = makeStyles({
@@ -33,30 +30,36 @@ const useStyles = makeStyles({
     display: "flex",
     flexDirection: "column",
     gap: tokens.spacingVerticalS,
-    padding: tokens.spacingVerticalM,
+    padding: tokens.spacingVerticalL,
     marginBottom: tokens.spacingVerticalS,
-    backgroundColor: tokens.colorNeutralBackground1,
-    border: `1px solid ${tokens.colorNeutralStroke2}`,
-    borderRadius: tokens.borderRadiusMedium,
-    transitionProperty: "border-color, box-shadow",
+    backgroundColor: cg.glass.fill,
+    backdropFilter: cg.glass.blurSoft,
+    WebkitBackdropFilter: cg.glass.blurSoft,
+    border: `1px solid ${cg.glass.stroke}`,
+    borderRadius: cg.radius,
+    boxShadow: cg.glass.shadow,
+    transitionProperty: "border-color, box-shadow, background-color, transform",
     transitionDuration: tokens.durationFaster,
     transitionTimingFunction: tokens.curveEasyEase,
     animationName: {
-      "0%": { opacity: 0, transform: "translateY(3px)" },
+      "0%": { opacity: 0, transform: "translateY(4px)" },
       "100%": { opacity: 1, transform: "translateY(0)" },
     },
     animationDuration: tokens.durationNormal,
     animationTimingFunction: tokens.curveDecelerateMax,
     ":hover": {
-      border: `1px solid ${tokens.colorNeutralStroke1}`,
-      boxShadow: tokens.shadow2,
+      backgroundColor: cg.glass.fillRaised,
+      border: `1px solid ${cg.glass.strokeStrong}`,
+      transform: "translateY(-1px)",
     },
     "@media (prefers-reduced-motion: reduce)": {
       animationName: "none",
+      ":hover": { transform: "none" },
     },
   },
   resolved: {
-    backgroundColor: tokens.colorNeutralBackground2,
+    backgroundColor: cg.glass.fillInset,
+    boxShadow: "none",
   },
   dismissed: {
     opacity: 0.55,
@@ -100,9 +103,9 @@ const useStyles = makeStyles({
   diff: {
     display: "flex",
     flexDirection: "column",
-    backgroundColor: tokens.colorNeutralBackground2,
-    border: `1px solid ${tokens.colorNeutralStroke2}`,
-    borderRadius: tokens.borderRadiusMedium,
+    backgroundColor: cg.glass.fillInset,
+    border: `1px solid ${cg.glass.stroke}`,
+    borderRadius: cg.radiusSm,
     overflow: "hidden",
   },
   diffLine: {
@@ -127,13 +130,13 @@ const useStyles = makeStyles({
     justifyContent: "center",
     paddingBlock: "1px",
     color: tokens.colorNeutralForeground3,
-    backgroundColor: tokens.colorNeutralBackground2,
+    backgroundColor: cg.glass.fillInset,
   },
   suggestion: {
     color: cg.diff.add,
     fontWeight: tokens.fontWeightSemibold,
     backgroundColor: cg.diff.addBg,
-    borderTop: `1px solid ${tokens.colorNeutralStroke2}`,
+    borderTop: `1px solid ${cg.glass.stroke}`,
   },
   explanation: {
     margin: 0,

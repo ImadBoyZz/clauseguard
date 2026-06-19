@@ -2,17 +2,19 @@
 
 Antwoordsleutel voor `demo-essay.docx` (gegenereerd uit `demo-essay.paragraphs.json`).
 Een Nederlands schoolopstel vol opzettelijke fouten, bedoeld als **regressietest voor
-de uitgebreide AI-proeflezer**. Vier paragrafen, indices `0..3`.
+de AI-proeflezer**. Vier paragrafen, indices `0..3`.
 
-De fouten zijn gespreid over vijf categorieën:
+> **Sinds de terugschaling naar twee check-lagen (spelling + LLM grammatica/stijl)** levert de
+> AI-proeflezer alleen nog `grammar` en `style`. De `consistency`- en `factual`-secties hieronder zijn
+> **vervallen**: het opstel bevat die fouten nog, maar ze worden niet meer geproduceerd.
+
+De actieve catches zijn gespreid over drie categorieën:
 
 | Categorie | Engine | Autocorrectie? |
 |---|---|---|
 | `spelling` | offline nspell (NL+EN dictionary) | ja (suggestie) |
 | `grammar` | LLM | ja (suggestie) |
-| `style` | LLM | nee (markeren) |
-| `consistency` | LLM (intern afleidbaar) | nee (markeren) |
-| `factual` | LLM (zachte vlag, wereldkennis) | **nee — alleen markeren** |
+| `style` | LLM (incl. zinsbouw + woordkeuze) | nee (markeren) |
 
 ---
 
@@ -57,39 +59,35 @@ Niet-woorden die de dictionary vangt. Suggestie waar betrouwbaar mogelijk.
 
 ---
 
-## consistency — LLM (intern afleidbaar), 4 catches
+## ~~consistency~~ — VERVALLEN sinds de terugschaling
 
-Tegenstrijdigheid of onlogica die je uit de tekst zelf kunt afleiden (geen externe kennis nodig).
+> De AI-proeflezer levert geen `consistency`-categorie meer. Deze 4 catches worden niet meer
+> geproduceerd. Bewaard als historische referentie.
 
-| Par. | Fragment | Uitleg |
+| Par. | Fragment | Uitleg (historisch) |
 |---|---|---|
-| 1 | `uitstoot van zuurstof door auto's en fabrieken` | Onlogisch: verbranding stoot CO2 uit, niet zuurstof. |
-| 1 | `De poolijsberen zijn hier heel blij mee, omdat ze nu meer zwemmen kunnen` | Onlogische gevolgtrekking t.o.v. de opwarming/schade in dezelfde paragraaf. |
-| 3 | `zowel goed als slecht is, afhankelijk van hoe je er naar kijkt of niet` | Loze tegenstelling: bevestigt en ontkent tegelijk. |
-| 3 | `Als iedereen dit doet of niet doet, wordt de wereld mogelijks beter of slechter` | Betekenisloos: dekt elke uitkomst af en stelt dus niets. |
+| ~~1~~ | ~~`uitstoot van zuurstof door auto's en fabrieken`~~ | ~~Onlogisch: verbranding stoot CO2 uit, niet zuurstof.~~ |
+| ~~1~~ | ~~`De poolijsberen zijn hier heel blij mee, omdat ze nu meer zwemmen kunnen`~~ | ~~Onlogische gevolgtrekking t.o.v. de opwarming/schade in dezelfde paragraaf.~~ |
+| ~~3~~ | ~~`zowel goed als slecht is, afhankelijk van hoe je er naar kijkt of niet`~~ | ~~Loze tegenstelling: bevestigt en ontkent tegelijk.~~ |
+| ~~3~~ | ~~`Als iedereen dit doet of niet doet, wordt de wereld mogelijks beter of slechter`~~ | ~~Betekenisloos: dekt elke uitkomst af en stelt dus niets.~~ |
 
 ---
 
-## factual — LLM zachte vlag (wereldkennis), 8 catches
+## ~~factual~~ — VERVALLEN sinds de terugschaling
 
-**Alleen markeren, niet corrigeren.** Feitfouten die externe wereldkennis vereisen.
+> De AI-proeflezer levert geen `factual`-categorie (zachte feit-vlag) meer. Deze 8 catches worden niet
+> meer geproduceerd. Bewaard als historische referentie.
 
-| Par. | Fragment | Uitleg |
+| Par. | Fragment | Uitleg (historisch) |
 |---|---|---|
-| 0 | `In 2005 is de iPhone uitgevonden` | De eerste iPhone verscheen in **2007**, niet 2005. |
-| 0 | `uitgevonden door Bill Gates` | De iPhone komt van **Apple** (Steve Jobs c.s.), niet Bill Gates. |
-| 0 | `die ook de oprichter was van Apple` | Bill Gates is **geen** oprichter van Apple (Jobs/Wozniak). |
-| 0 | `Microsoft heeft gestart in zijn kelder in Parijs` | Microsoft werd opgericht in **Albuquerque (VS)**, niet een kelder in Parijs. |
-| 1 | `Nederland dat in Zuid-Amerika ligt` | Nederland ligt in **Europa**, niet Zuid-Amerika. |
-| 1 | `gestegen met wel 47 graden de afgelopen tien jaar` | De opwarming is **~1,1 °C** sinds pre-industrieel, geen 47 graden in tien jaar. |
-| 2 | `Albert Einstein, die in de 14de eeuw leefde` | Einstein leefde **1879–1955**, niet in de 14de eeuw. |
-| 2 | `"Educatie is de sleutel tot niets."` | Verzonnen/onjuist toegeschreven citaat — niet van Einstein. |
-
-> Deze 8 verschijnen **alleen als markering in het paneel** (geen track change), want ze
-> hebben geen suggestie. Meet recall dus per laag: pane-markeringen vs. toegepaste redlines.
-> De twee fragmenten met aanhalingstekens (`"een beetje warm"`, het Einstein-citaat) leunen
-> op de quote-tolerante fallback in de matcher (`ignorePunct`) als Word slimme aanhalingstekens
-> gebruikt.
+| ~~0~~ | ~~`In 2005 is de iPhone uitgevonden`~~ | ~~De eerste iPhone verscheen in 2007, niet 2005.~~ |
+| ~~0~~ | ~~`uitgevonden door Bill Gates`~~ | ~~De iPhone komt van Apple (Steve Jobs c.s.), niet Bill Gates.~~ |
+| ~~0~~ | ~~`die ook de oprichter was van Apple`~~ | ~~Bill Gates is geen oprichter van Apple (Jobs/Wozniak).~~ |
+| ~~0~~ | ~~`Microsoft heeft gestart in zijn kelder in Parijs`~~ | ~~Microsoft werd opgericht in Albuquerque (VS), niet een kelder in Parijs.~~ |
+| ~~1~~ | ~~`Nederland dat in Zuid-Amerika ligt`~~ | ~~Nederland ligt in Europa, niet Zuid-Amerika.~~ |
+| ~~1~~ | ~~`gestegen met wel 47 graden de afgelopen tien jaar`~~ | ~~De opwarming is ~1,1 °C sinds pre-industrieel, geen 47 graden in tien jaar.~~ |
+| ~~2~~ | ~~`Albert Einstein, die in de 14de eeuw leefde`~~ | ~~Einstein leefde 1879–1955, niet in de 14de eeuw.~~ |
+| ~~2~~ | ~~`"Educatie is de sleutel tot niets."`~~ | ~~Verzonnen/onjuist toegeschreven citaat — niet van Einstein.~~ |
 
 ---
 
@@ -100,6 +98,7 @@ Tegenstrijdigheid of onlogica die je uit de tekst zelf kunt afleiden (geen exter
 | spelling | 3 |
 | grammar | 7 |
 | style | 5 |
-| consistency | 4 |
-| factual | 8 |
-| **Totaal** | **27** |
+| **Totaal** | **15** |
+
+> ~~consistency (4)~~ en ~~factual (8)~~ zijn vervallen sinds de terugschaling naar twee check-lagen;
+> het oude totaal was 27.

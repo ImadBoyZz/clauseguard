@@ -47,8 +47,12 @@ export interface ClauseGuardActions {
 /**
  * Stabiele signatuur om hetzelfde issue over scans heen te herkennen.
  * Wordt gebruikt om reeds verwerkte issues (toegepast/genegeerd) bij een nieuwe scan
- * niet opnieuw als 'open' te tonen. `occurrence` zit erin zodat bij dubbele identieke
- * woorden alleen het exact verwerkte voorkomen wordt afgevangen, niet een ander.
+ * niet opnieuw als 'open' te tonen.
+ *
+ * BEWUST ZONDER `occurrence`: dat veld wordt ELKE scan opnieuw berekend uit de actuele
+ * tekstposities (runChecks.assignOccurrences). Na een edit kan hetzelfde issue dus een ander
+ * occurrence-getal krijgen, waardoor de signatuur niet meer matcht en de carry-over hapert
+ * (verdwijnende of dubbele kaarten). Identiteit = (source, paraIndex, category, original, suggestion).
  */
 function issueSignature(issue: Issue): string {
   return [
@@ -57,7 +61,6 @@ function issueSignature(issue: Issue): string {
     issue.category,
     issue.original,
     issue.suggestion ?? "",
-    issue.occurrence,
   ].join("|");
 }
 
@@ -100,11 +103,19 @@ export function useClauseGuard(): ClauseGuardState & ClauseGuardActions {
     try {
       const result = await runFullScan({ useLlm });
       setIssues((prev) => {
-        // Behoud reeds verwerkte issues (toegepast of genegeerd) en filter hun duplicaten
-        // uit de verse scan. Zo duiken opgeloste/genegeerde problemen niet opnieuw op —
-        // ook niet op Word-builds waar de reviewed-tekst-leesweg (wordDocument.ts) faalt en
-        // de ruwe tekst nog tracked deletions bevat.
-        const resolved = prev.filter((iss) => iss.status !== "pending");
+        // Behoud reeds verwerkte issues (toegepast of genegeerd) en filter hun duplicaten uit de
+        // verse scan, zodat opgeloste/genegeerde problemen niet opnieuw opduiken — ook op
+        // Word-builds waar de reviewed-tekst-leesweg (wordDocument.ts) faalt en de ruwe tekst nog
+        // tracked deletions bevat.
+        //
+        // MAAR: draag een verwerkt issue alléén over zolang z'n fragment NOG in de (verse)
+        // paragraaftekst staat. Werkt de gebruiker die tekst weg of wijzigt 'm, dan vervalt het
+        // oude issue. Zonder deze check zou de lijst "bevriezen": oude verwerkte issues blijven de
+        // verse scan onderdrukken (en een nieuw geïntroduceerde fout op dezelfde plek zou nooit
+        // verschijnen) — precies het gemelde gedrag "lijst verandert niet na een edit".
+        const stillPresent = (iss: Issue): boolean =>
+          (result.paragraphs[iss.paragraphIndex]?.text ?? "").indexOf(iss.original) !== -1;
+        const resolved = prev.filter((iss) => iss.status !== "pending" && stillPresent(iss));
         const resolvedSigs = new Set(resolved.map(issueSignature));
         const fresh = result.issues.filter((iss) => !resolvedSigs.has(issueSignature(iss)));
         return [...resolved, ...fresh];

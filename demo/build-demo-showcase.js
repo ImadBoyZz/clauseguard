@@ -1,9 +1,10 @@
-// Genereert demo-contract.docx uit de geverifieerde paragrafen in
-// demo-contract.paragraphs.json. Elke JSON-paragraaf -> exact 1 Word-paragraaf,
-// in dezelfde volgorde, zodat readParagraphs() identieke indices (0..14) ziet als
-// de standalone-verificatie. GEEN extra/lege paragrafen of TOC (zou indices verschuiven).
+// Genereert demo-showcase.docx uit demo-showcase.paragraphs.json.
+// Showcase-document dat ELKE ClauseGuard-engine raakt (spelling, gedefinieerde termen,
+// ongedefinieerde term, dode definitie, gebroken kruisverwijzing + AI-laag-stof).
+// Elke JSON-paragraaf -> exact 1 Word-paragraaf, zelfde volgorde, zodat readParagraphs()
+// identieke indices (0..17) ziet als de standalone-verificatie.
 //
-// Run: node demo/build-demo.js
+// Run: node demo/build-demo-showcase.js
 
 const fs = require("fs");
 const path = require("path");
@@ -18,20 +19,19 @@ const {
 
 const here = __dirname;
 const data = JSON.parse(
-  fs.readFileSync(path.join(here, "demo-contract.paragraphs.json"), "utf8")
+  fs.readFileSync(path.join(here, "demo-showcase.paragraphs.json"), "utf8")
 );
 const paras = data.paragraphs; // [{index, text}]
 
-// Welke paragraafindices zijn headings (blijven aparte body-paragrafen -> dankzij
-// de per-paragraaf defined-term fix vervuilen ze de term-extractie niet meer).
-const HEADINGS = new Set([2, 5, 9, 15]);
-// Definitie-paragrafen: lead-term vetgedrukt voor visuele duidelijkheid.
-// (Bold is een aparte run; para.text blijft de volledige string -> check ongewijzigd.)
+// Kop-paragrafen (blijven aparte body-paragrafen).
+const HEADINGS = new Set([2, 6, 9, 12]);
+// Definitie-paragrafen: lead-term vet voor visuele duidelijkheid (bold is een aparte run;
+// para.text blijft de volledige string -> check ongewijzigd).
 const DEFS = {
-  3: "Dienstverlener",
-  4: "Vertrouwelijke Informatie",
-  10: "Confidential Information",
-  17: "Overmacht",
+  3: "Leverancier",
+  4: "Vertrouwelijke Gegevens",
+  5: "Overmacht",
+  13: "Confidential Data",
 };
 
 function bodyParagraph(text, boldLead) {
@@ -55,7 +55,6 @@ function bodyParagraph(text, boldLead) {
 
 const children = paras.map((p) => {
   if (p.index === 0) {
-    // Titel
     return new Paragraph({
       heading: HeadingLevel.TITLE,
       alignment: AlignmentType.CENTER,
@@ -111,7 +110,7 @@ const doc = new Document({
 });
 
 Packer.toBuffer(doc).then((buffer) => {
-  const out = path.join(here, "demo-contract.docx");
+  const out = path.join(here, "demo-showcase.docx");
   fs.writeFileSync(out, buffer);
   console.log("WROTE:", out, "(" + buffer.length + " bytes, " + children.length + " paragrafen)");
 });

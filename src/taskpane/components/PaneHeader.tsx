@@ -4,46 +4,45 @@ import { ShieldRegular } from "@fluentui/react-icons";
 import { cg } from "../theme";
 
 /**
- * Gebrande kop van de task-pane: een donkere ink-band met het ClauseGuard-schild,
- * het wordmerk en een tagline. De band ankert het paneel en geeft contrast met het
- * witte Word-document. Het schild draagt de enige signature-spark (geel).
+ * Gebrande kop van de task-pane: een glass-band die de coral-glow van de canvas doorlaat,
+ * met het ClauseGuard-schild, het wordmerk en een tagline. De band ankert het paneel
+ * bovenaan (sticky) en blijft leesbaar tijdens scrollen. Het schild draagt een coral
+ * mark met warme spark — de signature-accent.
  */
 const useStyles = makeStyles({
   band: {
     display: "flex",
     alignItems: "center",
-    gap: tokens.spacingHorizontalM,
-    padding: `${tokens.spacingVerticalM} ${tokens.spacingHorizontalL}`,
-    backgroundColor: cg.ink,
-    borderBottom: `1px solid ${cg.inkBorder}`,
+    gap: tokens.spacingHorizontalS,
+    padding: `${tokens.spacingVerticalS} ${tokens.spacingHorizontalL}`,
+    backgroundColor: cg.glass.fill,
+    backdropFilter: cg.glass.blur,
+    WebkitBackdropFilter: cg.glass.blur,
+    borderBottom: `1px solid ${cg.glass.stroke}`,
   },
   mark: {
     position: "relative",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    width: "34px",
-    height: "34px",
+    width: "28px",
+    height: "28px",
     flexShrink: 0,
-    borderRadius: tokens.borderRadiusMedium,
-    backgroundColor: cg.inkRaised,
-    border: `1px solid ${cg.inkBorder}`,
-    color: cg.inkText,
+    borderRadius: cg.radiusSm,
+    backgroundImage: `linear-gradient(150deg, ${cg.accent} 0%, #FF7A47 100%)`,
+    boxShadow: cg.accentGlow,
+    color: "#FFF6F2",
   },
   spark: {
     position: "absolute",
     top: "-3px",
     right: "-3px",
-    width: "8px",
-    height: "8px",
+    width: "9px",
+    height: "9px",
     borderRadius: tokens.borderRadiusCircular,
     backgroundColor: cg.spark,
-    border: `2px solid ${cg.ink}`,
-  },
-  lockup: {
-    display: "flex",
-    flexDirection: "column",
-    minWidth: 0,
+    boxShadow: `0 0 8px ${cg.spark}`,
+    border: `2px solid ${cg.base}`,
   },
   wordmark: {
     color: cg.inkText,
@@ -52,12 +51,6 @@ const useStyles = makeStyles({
     lineHeight: tokens.lineHeightBase400,
     letterSpacing: "-0.01em",
   },
-  tagline: {
-    color: cg.inkMuted,
-    fontSize: tokens.fontSizeBase100,
-    lineHeight: tokens.lineHeightBase200,
-    letterSpacing: "0.01em",
-  },
 });
 
 const PaneHeader: React.FC = () => {
@@ -65,15 +58,12 @@ const PaneHeader: React.FC = () => {
   return (
     <header className={styles.band}>
       <div className={styles.mark} aria-hidden>
-        <ShieldRegular fontSize={20} />
+        <ShieldRegular fontSize={16} />
         <span className={styles.spark} />
       </div>
-      <div className={styles.lockup}>
-        <Text as="h1" className={styles.wordmark}>
-          ClauseGuard
-        </Text>
-        <span className={styles.tagline}>Contractcontrole · NL / EN</span>
-      </div>
+      <Text as="h1" className={styles.wordmark}>
+        ClauseGuard
+      </Text>
     </header>
   );
 };

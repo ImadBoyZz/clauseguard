@@ -1,8 +1,11 @@
 # Demo-contract — verwachte ClauseGuard-resultaten
 
-> Antwoordsleutel voor `demo-contract.docx`. Standalone geverifieerd tegen de echte
-> `definedTerms.ts` (gecompileerd) en `nspell` + de echte NL/EN-woordenboeken.
-> Paragraaf-indices zijn 0-based zoals `readParagraphs()` ze nummert.
+> Antwoordsleutel voor `demo-contract.docx`. Standalone geverifieerd tegen `nspell` + de echte
+> NL/EN-woordenboeken. Paragraaf-indices zijn 0-based zoals `readParagraphs()` ze nummert.
+>
+> **Sinds de terugschaling naar twee check-lagen (spelling + LLM grammatica/stijl)** vangt de
+> offline engine alleen nog de spelfouten. De defined-term- en clause-/kruisverwijzing-secties
+> hieronder zijn **vervallen**: het document bevat die fouten nog wel, maar ze worden niet meer geflagd.
 
 ## Spelling (severity: Spelling, blauw) — 6 stuks
 
@@ -15,22 +18,33 @@
 | p13 | `recieve` | receive | EN |
 | p14 | `oblgations` | obligations | EN |
 
-De taal wordt **per paragraaf** gedetecteerd (p0–p9 → NL-engine, p10–p14 → EN-engine).
+De taal wordt **per paragraaf** gedetecteerd (p0–p9 + p15–p19 → NL-engine, p10–p14 → EN-engine).
 
-## Defined-term inconsistenties (severity: Kritiek, rood) — 4 stuks
+## ~~Defined-term inconsistenties~~ — VERVALLEN sinds de terugschaling
+
+> De offline term-engine (`definedTerms.ts`) is verwijderd. De onderstaande 4 varianten zitten nog
+> in het document maar worden niet meer geflagd. Bewaard als historische referentie.
 
 | Par. | Geflagde variant | Canonieke term | Definitie staat in |
 |---|---|---|---|
-| p5 | `dienstverlener` | **Dienstverlener** | p3 ("Dienstverlener betekent …") |
-| p6 | `dienstverlener` | **Dienstverlener** | p3 |
-| p7 | `vertrouwelijke informatie` | **Vertrouwelijke Informatie** | p4 ("Vertrouwelijke Informatie betekent …") |
-| p13 | `confidential information` | **Confidential Information** | p10 ("Confidential Information means …") |
+| ~~p5~~ | ~~`dienstverlener`~~ | ~~**Dienstverlener**~~ | ~~p3 ("Dienstverlener betekent …")~~ |
+| ~~p6~~ | ~~`dienstverlener`~~ | ~~**Dienstverlener**~~ | ~~p3~~ |
+| ~~p7~~ | ~~`vertrouwelijke informatie`~~ | ~~**Vertrouwelijke Informatie**~~ | ~~p4 ("Vertrouwelijke Informatie betekent …")~~ |
+| ~~p13~~ | ~~`confidential information`~~ | ~~**Confidential Information**~~ | ~~p10 ("Confidential Information means …")~~ |
 
-> Let op p5: de inconsistentie zit in een **kopje** ("Artikel 2 — Verplichtignen van de
-> dienstverlener"). Dat dit gevonden wordt, is dankzij de per-paragraaf fix in
-> `definedTerms.ts` — vóór de fix vervuilde het kopje de term-extractie.
+## ~~Clause-integriteit & term-dekking~~ — VERVALLEN sinds de terugschaling
 
-## LLM legal-style (severity: Stijl, geel) — alleen met backend
+> De offline structuur-/term-dekking-engines (`clauseChecks.ts` + de undefined/unused-term-checks)
+> zijn verwijderd. Deze 3 flag-only catches in p15–p19 worden niet meer geproduceerd. Bewaard als
+> historische referentie.
+
+| Par. | Geflagd | Soort | Waarom (historisch) |
+|---|---|---|---|
+| ~~p16~~ | ~~`Artikel 7`~~ | ~~Gebroken kruisverwijzing~~ | ~~Het document nummert artikelen (1, 2, 4) maar Artikel 7 bestaat niet.~~ |
+| ~~p18~~ | ~~`Onderliggende Overeenkomst`~~ | ~~Ongedefinieerde term~~ | ~~Title-Case-frase die ≥2× mét lidwoord gebruikt wordt maar nergens gedefinieerd is.~~ |
+| ~~p17~~ | ~~`Overmacht`~~ | ~~Dode definitie~~ | ~~Formeel gedefinieerd maar nergens anders in het document gebruikt.~~ |
+
+## LLM grammatica/stijl (severity: Advies, geel) — alleen met backend
 
 Verschijnt **alleen** als `server/` draait én `OPENROUTER_API_KEY` in `server/.env` staat.
 Zonder key degradeert de add-in netjes (geen stijl-issues). Verwachte signalen:
@@ -42,5 +56,6 @@ Exacte LLM-output varieert per run (het is een taalmodel); bovenstaande zijn de 
 
 ## Samengevat
 
-- **Offline run (geen backend):** 6 spelling + 4 kritiek = **10 issues**, 0 false positives.
-- **Met LLM-backend:** + enkele gele stijl-issues op p11/p12.
+- **Offline run (geen backend):** 6 spelling = **6 issues**, 0 false positives. (De vroegere term- en
+  clause-/kruisverwijzing-catches zijn vervallen sinds de terugschaling naar twee check-lagen.)
+- **Met LLM-backend:** + enkele gele grammatica/stijl-issues op p11/p12.

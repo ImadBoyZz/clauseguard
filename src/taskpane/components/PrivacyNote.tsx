@@ -1,6 +1,7 @@
 import * as React from "react";
 import { makeStyles, tokens } from "@fluentui/react-components";
 import { LockClosedRegular } from "@fluentui/react-icons";
+import { cg } from "../theme";
 
 /**
  * Slanke privacy-strip onder de header. Maakt expliciet dat verwerking lokaal gebeurt
@@ -13,8 +14,8 @@ const useStyles = makeStyles({
     alignItems: "center",
     gap: tokens.spacingHorizontalXS,
     padding: `${tokens.spacingVerticalXS} ${tokens.spacingHorizontalL}`,
-    backgroundColor: tokens.colorNeutralBackground2,
-    borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
+    backgroundColor: cg.glass.fillInset,
+    borderBottom: `1px solid ${cg.glass.stroke}`,
     color: tokens.colorNeutralForeground3,
   },
   icon: {
@@ -25,6 +26,9 @@ const useStyles = makeStyles({
   text: {
     fontSize: tokens.fontSizeBase200,
     lineHeight: tokens.lineHeightBase200,
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
   },
   strong: {
     color: tokens.colorNeutralForeground2,
@@ -38,8 +42,7 @@ const PrivacyNote: React.FC = () => {
     <div className={styles.strip}>
       <LockClosedRegular className={styles.icon} aria-hidden />
       <span className={styles.text}>
-        <span className={styles.strong}>Lokaal verwerkt.</span> AI-controle stuurt fragmenten naar
-        de AI-proeflezer, alleen als je die aanzet.
+        <span className={styles.strong}>Lokaal verwerkt.</span> AI-proeflezer is opt-in.
       </span>
     </div>
   );

@@ -12,75 +12,17 @@ import {
   makeStyles,
   tokens,
 } from "@fluentui/react-components";
-import { clauseGuardLightTheme } from "../taskpane/theme";
+import { clauseGuardLightTheme, cg } from "../taskpane/theme";
 import PaneHeader from "../taskpane/components/PaneHeader";
-import PrivacyNote from "../taskpane/components/PrivacyNote";
 import Toolbar from "../taskpane/components/Toolbar";
 import IssueList from "../taskpane/components/IssueList";
 import { Issue } from "../taskpane/core/types";
 
 type Status = "idle" | "scanning" | "applying" | "ready";
 
-/** Verse set mock-issues die de demo benadert: 6 spelling + 4 kritiek (term) + 2 advies. */
+/** Verse set mock-issues die de demo benadert: 6 spelling + 2 advies (grammatica/stijl). */
 function mockIssues(): Issue[] {
   return [
-    // --- Kritiek: inconsistente gedefinieerde termen ---
-    {
-      id: "term-1",
-      category: "term",
-      severity: "critical",
-      original: "de dienstverlener",
-      suggestion: "de Dienstverlener",
-      explanation:
-        '"Dienstverlener" is in artikel 1 als gedefinieerde term vastgelegd (met hoofdletter). Hier staat de kleine-letter-variant, wat de juridische verwijzing dubbelzinnig maakt.',
-      language: "nl",
-      paragraphIndex: 4,
-      occurrence: 0,
-      status: "pending",
-      source: "definedTerms",
-    },
-    {
-      id: "term-2",
-      category: "term",
-      severity: "critical",
-      original: "Service Provider",
-      suggestion: "Dienstverlener",
-      explanation:
-        "Het contract definieert deze partij als “Dienstverlener”. De Engelse variant introduceert een tweede term voor dezelfde partij; gebruik consequent één gedefinieerde term.",
-      language: "en",
-      paragraphIndex: 7,
-      occurrence: 0,
-      status: "pending",
-      source: "definedTerms",
-    },
-    {
-      id: "term-3",
-      category: "term",
-      severity: "critical",
-      original: "de overeenkomst",
-      suggestion: "deze Overeenkomst",
-      explanation:
-        '"Overeenkomst" is een gedefinieerde term. De niet-gedefinieerde verwijzing kan onbedoeld naar een andere overeenkomst wijzen.',
-      language: "nl",
-      paragraphIndex: 9,
-      occurrence: 1,
-      status: "pending",
-      source: "definedTerms",
-    },
-    {
-      id: "term-4",
-      category: "term",
-      severity: "critical",
-      original: "klant",
-      suggestion: "Opdrachtgever",
-      explanation:
-        'De wederpartij is gedefinieerd als "Opdrachtgever". "Klant" is een synoniem dat hier juridische onduidelijkheid schept.',
-      language: "nl",
-      paragraphIndex: 11,
-      occurrence: 0,
-      status: "pending",
-      source: "definedTerms",
-    },
     // --- Advies: stijl/grammatica (LLM) ---
     {
       id: "style-1",
@@ -234,21 +176,21 @@ const useStyles = makeStyles({
     width: "360px",
     height: "720px",
     maxHeight: "calc(100vh - 120px)",
-    display: "flex",
-    flexDirection: "column",
-    backgroundColor: tokens.colorNeutralBackground1,
-    border: "1px solid #c7c9d1",
-    borderRadius: "8px",
-    overflow: "hidden",
-    boxShadow: "0 12px 40px rgba(11, 16, 48, 0.16)",
+    // Spiegelt App: het hele frame scrollt, zodat het muiswiel overal werkt.
+    overflowY: "auto",
+    backgroundColor: cg.base,
+    backgroundImage: `radial-gradient(120% 60% at 50% -8%, ${cg.glowCoral} 0%, rgba(255,92,45,0) 55%), linear-gradient(180deg, ${cg.base} 0%, ${cg.baseDeep} 100%)`,
+    border: `1px solid ${cg.glass.stroke}`,
+    borderRadius: "12px",
+    boxShadow: "0 24px 60px rgba(0, 0, 0, 0.55)",
+  },
+  topbar: {
+    position: "sticky",
+    top: 0,
+    zIndex: 5,
   },
   notice: {
     margin: `${tokens.spacingVerticalS} ${tokens.spacingHorizontalL} 0`,
-  },
-  content: {
-    flex: 1,
-    minHeight: 0,
-    overflowY: "auto",
   },
 });
 
@@ -266,7 +208,6 @@ const Preview: React.FC = () => {
   const styles = useStyles();
   const [issues, setIssues] = React.useState<Issue[]>([]);
   const [status, setStatus] = React.useState<Status>("idle");
-  const [useLlm, setUseLlm] = React.useState(true);
   const [error, setError] = React.useState<string | undefined>(undefined);
   const [scenario, setScenario] = React.useState<Scenario>("empty");
 
@@ -338,33 +279,29 @@ const Preview: React.FC = () => {
         <span className={styles.frameLabel}>360 × 720 — Word task-pane</span>
 
         <div className={styles.frame}>
-          <PaneHeader />
-          <PrivacyNote />
-          {error && (
-            <MessageBar intent="error" className={styles.notice}>
-              <MessageBarBody>{error}</MessageBarBody>
-            </MessageBar>
-          )}
-          <Toolbar
-            issues={issues}
-            status={status}
-            useLlm={useLlm}
-            aiStatus={null}
-            onScan={onScan}
-            onApplyAll={onApplyAll}
-            onAcceptAll={() => undefined}
-            onRejectAll={() => undefined}
-            onSetUseLlm={setUseLlm}
-          />
-          <div className={styles.content}>
-            <IssueList
+          <div className={styles.topbar}>
+            <PaneHeader />
+            {error && (
+              <MessageBar intent="error" className={styles.notice}>
+                <MessageBarBody>{error}</MessageBarBody>
+              </MessageBar>
+            )}
+            <Toolbar
               issues={issues}
-              scanning={scanning}
-              onAccept={onAccept}
-              onDismiss={onDismiss}
-              onLocate={() => undefined}
+              status={status}
+              onScan={onScan}
+              onApplyAll={onApplyAll}
+              onAcceptAll={() => undefined}
+              onRejectAll={() => undefined}
             />
           </div>
+          <IssueList
+            issues={issues}
+            scanning={scanning}
+            onAccept={onAccept}
+            onDismiss={onDismiss}
+            onLocate={() => undefined}
+          />
         </div>
       </div>
     </FluentProvider>

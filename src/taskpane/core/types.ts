@@ -1,23 +1,20 @@
 // ClauseGuard — gedeelde datatypes (single source of truth).
-// Alle modules (spelling, defined-terms, LLM legal-style) produceren `Issue`-objecten
-// volgens dit contract; de UI consumeert ze. Wijzig dit type met beleid: alles hangt eraan.
+// Alle modules (spelling via nspell, grammatica/stijl via de LLM-laag) produceren
+// `Issue`-objecten volgens dit contract; de UI consumeert ze. Wijzig dit type met beleid:
+// alles hangt eraan.
 
 /** Welke check de issue vond. */
 export type IssueCategory =
   | "spelling" // nspell (offline woordenboek): niet-bestaande woorden
-  | "term" // defined-term consistency (structureel): inconsistent gebruikte contractdefinitie
   | "grammar" // LLM: congruentie (onderwerp-werkwoord), d/t-fouten, woordvolgorde, verbuiging
-  | "style" // LLM: vaag/omslachtig/onhelder taalgebruik, juridisch onzekere termen
-  | "consistency" // LLM: interne tegenstrijdigheid/onlogica, afleidbaar uit de tekst zelf
-  | "factual"; // LLM zachte vlag: mogelijke feitfout die externe wereldkennis vereist (geen autocorrectie)
+  | "style"; // LLM: vaag/omslachtig/onhelder taalgebruik, zwakke woordkeuze, zinsbouw
 
 /**
- * Severity-tier zoals getoond in de UI (LegalFly-stijl: gegroepeerd op ernst).
- * - "spelling"  → blauw/laag: spelfout
- * - "advisory"  → geel/midden: stijl/grammatica-advies
- * - "critical"  → rood/hoog: juridisch risico (bv. inconsistente gedefinieerde term)
+ * Severity-tier zoals getoond in de UI (gegroepeerd op ernst).
+ * - "spelling"  → blauw/laag: spelfout (offline nspell)
+ * - "advisory"  → geel/midden: grammatica- en stijladvies (AI-laag)
  */
-export type Severity = "spelling" | "advisory" | "critical";
+export type Severity = "spelling" | "advisory";
 
 /** Levenscyclus van een suggestie in de task-pane. */
 export type IssueStatus = "pending" | "accepted" | "rejected";
@@ -26,7 +23,7 @@ export type IssueStatus = "pending" | "accepted" | "rejected";
 export type Lang = "nl" | "en";
 
 /** Welke engine de issue genereerde (voor debugging/telemetrie/audit-trail). */
-export type IssueSource = "nspell" | "definedTerms" | "llm";
+export type IssueSource = "nspell" | "llm";
 
 /**
  * Status van de AI-backend voor de UI-indicator.
@@ -96,12 +93,8 @@ export function severityForCategory(category: IssueCategory): Severity {
   switch (category) {
     case "spelling":
       return "spelling";
-    case "term":
-      return "critical";
     case "grammar":
     case "style":
-    case "consistency":
-    case "factual":
     default:
       return "advisory";
   }
@@ -111,5 +104,4 @@ export function severityForCategory(category: IssueCategory): Severity {
 export const SEVERITY_LABEL: Record<Severity, string> = {
   spelling: "Spelling",
   advisory: "Stijl",
-  critical: "Kritiek",
 };

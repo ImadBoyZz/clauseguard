@@ -91,6 +91,37 @@ export function detectLanguage(text: string): Lang {
 }
 
 /**
+ * True als `a` een subsequence is van `b`: alle tekens van `a` komen in dezelfde
+ * volgorde (niet per se aaneengesloten) in `b` voor.
+ */
+function isSubsequence(a: string, b: string): boolean {
+  let i = 0;
+  for (let j = 0; j < b.length && i < a.length; j++) {
+    if (a[i] === b[j]) i++;
+  }
+  return i === a.length;
+}
+
+/**
+ * Kiest de beste suggestie uit nspell's gerangschikte lijst.
+ *
+ * nspell zet soms een kortere correctie bovenaan die toevallig een bestaand woord vormt
+ * (bv. "oblgations" → ["oblations", "obligations"]), terwijl de bedoelde correctie een
+ * vergeten letter is. We bevoordelen daarom de eerste suggestie waarvan het foute token een
+ * subsequence is — d.w.z. de correctie voegt alléén letters toe (de klassieke
+ * "letter-vergeten"-typo, zoals de ontbrekende "i" in "obligations"). Is er geen zulke
+ * kandidaat, dan houden we nspell's eigen #1 aan (geen regressie op transposities e.d.).
+ */
+function pickBestSuggestion(token: string, suggestions: string[]): string | undefined {
+  if (suggestions.length === 0) return undefined;
+  const lower = token.toLowerCase();
+  for (const candidate of suggestions) {
+    if (isSubsequence(lower, candidate.toLowerCase())) return candidate;
+  }
+  return suggestions[0];
+}
+
+/**
  * Controleert paragrafen op spelfouten en retourneert een Issue per fout token.
  * occurrence is 0 als placeholder — runChecks.ts overschrijft dit globaal.
  */
@@ -110,7 +141,7 @@ export function checkParagraphs(paragraphs: DocParagraph[]): Issue[] {
       if (spell.correct(token)) continue;
 
       const suggestions = spell.suggest(token);
-      const suggestion = suggestions[0];
+      const suggestion = pickBestSuggestion(token, suggestions);
 
       const explanation = suggestion
         ? `Mogelijke spelfout — bedoelde je "${suggestion}"?`

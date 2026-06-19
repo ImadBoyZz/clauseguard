@@ -1,6 +1,7 @@
 /* global Word, Office, console */
 
 import { Issue, hasSuggestion } from "./types";
+import { cg } from "../theme";
 
 // --- Runtime capability gates ---
 
@@ -163,6 +164,10 @@ export async function applyCorrections(issues: Issue[]): Promise<void> {
       // insertText("Replace") retourneert het bereik van de ingevoegde tekst —
       // daar hangen we straks de opmerking aan.
       const newRange = range.insertText(issue.suggestion!, Word.InsertLocation.replace);
+      // Markeer het verbeterde woord rood in het document. Bovenop de tracked change, zodat
+      // de correctie altijd opvalt — ook in 'Eenvoudige markeringen' en na accepteren. De
+      // kleurwijziging valt binnen dezelfde kritieke sync hieronder (geen extra round-trip).
+      newRange.font.color = cg.docRedline;
       if (commentsOk) {
         commentTargets.push({ range: newRange, text: buildCommentText(issue) });
       }

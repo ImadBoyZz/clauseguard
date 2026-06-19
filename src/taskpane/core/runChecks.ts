@@ -5,7 +5,6 @@
 
 import { readParagraphs } from "./wordDocument";
 import { initSpellEngine, checkParagraphs } from "./spellEngine";
-import { findTermInconsistencies } from "./definedTerms";
 import { checkLegalStyle, isLegalStyleConfigured } from "./legalStyle";
 import { DocParagraph, Issue, ScanResult } from "./types";
 
@@ -28,6 +27,18 @@ import { DocParagraph, Issue, ScanResult } from "./types";
  * (één issue per fysiek voorkomen) komt dat overeen. Bij twee engines die exact hetzelfde
  * fragment flaggen kan dit afwijken — zie de occurrence-notitie in HANDOFF.md.
  */
+/**
+ * Normaliseert een fragment voor een tolerante "staat dit (nog) letterlijk in de paragraaf?"-check:
+ * alle witruimte, leestekens en aanhalingstekens (recht én slim) eruit, lowercase. Dit spiegelt
+ * grofweg de ignorePunct/ignoreSpace-tolerantie van de range-resolver in trackChanges.ts, zodat de
+ * backstop hieronder alléén écht onvindbare fragmenten wegfiltert en geen valse drops doet op louter
+ * quote- of spatieverschillen. Een verschil in de letters zélf (bv. "betaling" vs "betalign") blijft
+ * wél een mismatch — precies wat we willen vangen.
+ */
+function normalizeForLocate(s: string): string {
+  return s.replace(/[\s.,;:!?()[\]{}"'’‘“”„«»\-–—/\\]/g, "").toLowerCase();
+}
+
 function assignOccurrences(issues: Issue[], paragraphs: DocParagraph[]): Issue[] {
   if (issues.length === 0) return issues;
 
@@ -88,8 +99,8 @@ function buildId(issue: Issue): string {
  * Voert de volledige documentscan uit.
  * - Leest paragrafen
  * - Initialiseert spellingengine
- * - Draait spellcheck + defined-terms check
- * - Optioneel: LLM legal-style check (alleen als useLlm=true én backend geconfigureerd)
+ * - Draait offline spellcheck (nspell)
+ * - Optioneel: LLM grammatica/stijl check (alleen als useLlm=true én backend geconfigureerd)
  * - Berekent globale occurrence-indices
  * - Kent stabiele ids toe
  * - Zet status op "pending"
@@ -104,25 +115,41 @@ export async function runFullScan(opts: { useLlm: boolean }): Promise<ScanResult
   // 2. Init spellingengine (idempotent)
   await initSpellEngine();
 
-  // 3. Verzamel issues van alle offline checks
+  // 3. Offline spellingcheck (nspell, NL+EN)
   const spellIssues = checkParagraphs(paragraphs);
-  const termIssues = findTermInconsistencies(paragraphs);
 
-  let allIssues: Issue[] = [...spellIssues, ...termIssues];
+  let allIssues: Issue[] = [...spellIssues];
   let usedLlm = false;
 
   // 4. LLM-check (optioneel)
   if (useLlm && isLegalStyleConfigured()) {
     try {
       const llmIssues = await checkLegalStyle(paragraphs, useLlm);
-      // Dedup: laat een LLM-issue vallen als een offline engine (spelling/term) exact hetzelfde
-      // fragment in dezelfde paragraaf al flagt. Anders krijg je bv. "Tegenwoordigh" twee keer
+      // Dedup: laat een LLM-issue vallen als de offline spellingcheck exact hetzelfde fragment
+      // in dezelfde paragraaf al flagt. Anders krijg je bv. "Tegenwoordigh" twee keer
       // (nspell-spelling + LLM-grammar) en kunnen twee correcties om dezelfde Range vechten.
       const offlineKeys = new Set(allIssues.map((i) => `${i.paragraphIndex}\n${i.original}`));
       const freshLlm = llmIssues.filter(
         (i) => !offlineKeys.has(`${i.paragraphIndex}\n${i.original}`)
       );
-      allIssues = [...allIssues, ...freshLlm];
+      // Backstop: gooi elk LLM-issue weg waarvan de `original` niet (tolerant) letterlijk in zijn
+      // paragraaf staat. Het model "verbetert" soms stilletjes een spelfout uit de brontekst (bv.
+      // doc "betalign" → original "betaling"), waardoor de range-resolver in trackChanges.ts het
+      // fragment nooit vindt: Vind selecteert niets en Accepteer past niets toe — een dode kaart.
+      // Liever geen kaart dan een kapotte. nspell-issues komen altijd uit de paragraaftekst zelf en
+      // passeren dus altijd; dit raakt alleen losgeslagen LLM-fragmenten.
+      const locatableLlm = freshLlm.filter((issue) => {
+        const paraText = paragraphs[issue.paragraphIndex]?.text ?? "";
+        const found =
+          normalizeForLocate(paraText).indexOf(normalizeForLocate(issue.original)) !== -1;
+        if (!found) {
+          console.warn(
+            `runFullScan: LLM-issue overgeslagen — "${issue.original}" staat niet letterlijk in paragraaf ${issue.paragraphIndex} (model normaliseerde de brontekst); zonder match zouden Vind/Accepteer niets doen.`
+          );
+        }
+        return found;
+      });
+      allIssues = [...allIssues, ...locatableLlm];
       usedLlm = true;
     } catch (err) {
       console.warn("runFullScan: LLM legal-style check mislukt, wordt overgeslagen.", err);
