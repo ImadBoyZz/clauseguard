@@ -6,6 +6,7 @@
 import { readParagraphs } from "./wordDocument";
 import { initSpellEngine, checkParagraphs } from "./spellEngine";
 import { checkLegalStyle, isLegalStyleConfigured } from "./legalStyle";
+import { rerankSpellSuggestions } from "./spellRerank";
 import { DocParagraph, Issue, ScanResult } from "./types";
 
 /**
@@ -117,6 +118,16 @@ export async function runFullScan(opts: { useLlm: boolean }): Promise<ScanResult
 
   // 3. Offline spellingcheck (nspell, NL+EN)
   const spellIssues = checkParagraphs(paragraphs);
+
+  // 3b. Context-rerank van de spelsuggesties (best-effort, backend-afhankelijk). Kiest per spelfout
+  //     de zin-passende kandidaat (bv. "parties" i.p.v. "partied"). Verandert NOOIT het aantal fouten,
+  //     alleen de voorgestelde correctie. Staat LOS van useLlm: ook met de AI-adviezen uit blijven de
+  //     spelsuggesties slim. Faalt graceful → offline #1-gok blijft staan.
+  try {
+    await rerankSpellSuggestions(spellIssues, paragraphs);
+  } catch (err) {
+    console.warn("runFullScan: spell-rerank overgeslagen.", err);
+  }
 
   let allIssues: Issue[] = [...spellIssues];
   let usedLlm = false;

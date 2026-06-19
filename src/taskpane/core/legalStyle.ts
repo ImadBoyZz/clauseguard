@@ -21,15 +21,79 @@ const CONFIDENCE_THRESHOLD = 0.6;
 const LLM_CATEGORIES: IssueCategory[] = ["grammar", "style"];
 
 /**
- * PER-PARAGRAAF sessie-cache: de issues van EEN paragraaf worden gecachet op een hash van
+ * PER-PARAGRAAF cache: de issues van EEN paragraaf worden gecachet op een hash van
  * (paragraafindex + tekst). Zo verandert het wijzigen van een paragraaf alleen die paragraaf z'n
  * sleutel - alle ongewijzigde paragrafen komen identiek uit de cache en gaan NIET opnieuw naar het
- * model. Dat lost twee dingen op: (1) een letter aanpassen her-rolt niet meer de issues van het
+ * model. Dat lost drie dingen op: (1) een letter aanpassen her-rolt niet meer de issues van het
  * hele document (Sonnet is bij temperature 0 niet bit-deterministisch, dus een volledige herscan
- * wobbelt), en (2) het scheelt API-calls/kosten - alleen de gewijzigde paragraaf wordt verstuurd.
- * Module-scoped: leeft per sessie en wist zich bij een herlaad van het paneel.
+ * wobbelt), (2) het scheelt API-calls/kosten - alleen de gewijzigde paragraaf wordt verstuurd, en
+ * (3) — sinds de cache naar localStorage spiegelt — blijft het aantal gevonden fouten STABIEL als
+ * je het document sluit en heropent. Zonder die persistentie reset een paneel-herlaad de cache en
+ * komt de LLM-wobble bij elke heropening volledig terug (telkens een ander aantal).
  */
 const paraCache = new Map<string, Issue[]>();
+
+// --- localStorage-persistentie van de cache ---
+// De Map hierboven leeft per paneel-sessie; bij een document-close/reopen herlaadt het paneel en
+// is hij leeg. We spiegelen hem daarom naar localStorage zodat dezelfde paragraaftekst na een
+// heropening hetzelfde (bevroren) LLM-resultaat teruggeeft i.p.v. opnieuw te wobbelen.
+
+/** localStorage-sleutel; versie-suffix zodat een formaatwijziging de oude blob niet hoeft te lezen. */
+const LS_KEY = "clauseguard.paraCache.v1";
+/** Ruime bovengrens op het aantal gecachete paragrafen — voorkomt onbeperkte groei over documenten heen. */
+const LS_MAX_ENTRIES = 2000;
+
+/** Veilige localStorage-handle: ontbreekt/gooit in sommige Office-webviews of privacy-modes. */
+function getLocalStorage(): Storage | null {
+  try {
+    return typeof localStorage !== "undefined" ? localStorage : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Hydrateert paraCache eenmalig uit localStorage (best-effort; corrupte blob wordt genegeerd). */
+function hydrateCache(): void {
+  const ls = getLocalStorage();
+  if (!ls) return;
+  try {
+    const raw = ls.getItem(LS_KEY);
+    if (!raw) return;
+    const obj = JSON.parse(raw) as Record<string, Issue[]>;
+    Object.keys(obj).forEach((key) => {
+      if (Array.isArray(obj[key])) paraCache.set(key, obj[key]);
+    });
+  } catch {
+    // onleesbare/oude cache: stil negeren en schoon beginnen
+  }
+}
+
+/** Schrijft paraCache terug naar localStorage (best-effort; quota-/serialisatiefout wordt geslikt). */
+function persistCache(): void {
+  const ls = getLocalStorage();
+  if (!ls) return;
+  try {
+    // Cap de grootte: gooi de oudst-ingevoegde sleutels weg tot we onder de grens zitten
+    // (Map bewaart insertievolgorde, dus de eerste keys zijn de oudste).
+    if (paraCache.size > LS_MAX_ENTRIES) {
+      const overflow: string[] = [];
+      paraCache.forEach((_v, k) => {
+        if (overflow.length < paraCache.size - LS_MAX_ENTRIES) overflow.push(k);
+      });
+      overflow.forEach((k) => paraCache.delete(k));
+    }
+    const obj: Record<string, Issue[]> = {};
+    paraCache.forEach((v, k) => {
+      obj[k] = v;
+    });
+    ls.setItem(LS_KEY, JSON.stringify(obj));
+  } catch {
+    // localStorage vol of niet schrijfbaar: in-memory cache blijft gewoon werken
+  }
+}
+
+// Hydrateer bij module-load, vóór de eerste scan.
+hydrateCache();
 
 /** djb2-hash van (useLlm + paragraafindex + tekst) — de per-paragraaf cache-sleutel. */
 function paraKey(useLlm: boolean, p: DocParagraph): string {
@@ -164,6 +228,9 @@ export async function checkLegalStyle(
         const bucket = byPara.get(p.index);
         if (bucket) paraCache.set(keys[i], bucket);
       });
+      // Spiegel de bijgewerkte cache naar localStorage zodat het resultaat een
+      // document-close/reopen overleeft (stabiel aantal fouten i.p.v. LLM-wobble).
+      persistCache();
     }
   }
 

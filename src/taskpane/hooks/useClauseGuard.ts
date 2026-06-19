@@ -10,6 +10,8 @@ import {
   isReviewSupported,
 } from "../core/trackChanges";
 
+/* global localStorage */
+
 /** UI-status van de task-pane. */
 type PaneStatus = "idle" | "scanning" | "applying" | "ready";
 
@@ -64,12 +66,33 @@ function issueSignature(issue: Issue): string {
   ].join("|");
 }
 
+/** localStorage-sleutel voor de AI-laag-voorkeur (overleeft het sluiten/heropenen van het document). */
+const USE_LLM_KEY = "clauseguard.useLlm";
+
+/** Leest de opgeslagen AI-laag-voorkeur; default AAN als er niets staat of localStorage ontbreekt. */
+function readUseLlmPref(): boolean {
+  try {
+    return localStorage.getItem(USE_LLM_KEY) !== "false";
+  } catch {
+    return true;
+  }
+}
+
+/** Bewaart de AI-laag-voorkeur (best-effort; faalt stil als localStorage niet schrijfbaar is). */
+function writeUseLlmPref(value: boolean): void {
+  try {
+    localStorage.setItem(USE_LLM_KEY, String(value));
+  } catch {
+    // localStorage niet beschikbaar: de voorkeur leeft alleen deze sessie
+  }
+}
+
 /** Hook die alle UI-state en acties voor de ClauseGuard task-pane beheert. */
 export function useClauseGuard(): ClauseGuardState & ClauseGuardActions {
   const [issues, setIssues] = useState<Issue[]>([]);
   const [status, setStatus] = useState<PaneStatus>("idle");
   const [error, setError] = useState<string | undefined>(undefined);
-  const [useLlm, setUseLlmState] = useState<boolean>(true);
+  const [useLlm, setUseLlmState] = useState<boolean>(readUseLlmPref);
   const [aiStatus, setAiStatus] = useState<AiStatus | null>(null);
 
   /** Pingt de backend-heartbeat als de AI-laag aan staat; reset naar null als hij uit staat. */
@@ -208,6 +231,7 @@ export function useClauseGuard(): ClauseGuardState & ClauseGuardActions {
 
   const setUseLlm = useCallback((value: boolean) => {
     setUseLlmState(value);
+    writeUseLlmPref(value);
   }, []);
 
   return {

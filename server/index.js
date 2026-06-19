@@ -213,6 +213,112 @@ app.post("/api/legal-style", async (req, res) => {
   }
 });
 
+/** System prompt voor de spelling-rerank: kies per woord de zin-passende kandidaat (geen nieuwe woorden). */
+function buildRerankSystemPrompt() {
+  return `You are a bilingual (Dutch/English) proofreader. For each item you receive a MISSPELLED word, the SENTENCE it appears in, and a list of CANDIDATE corrections from a spell-checker. Pick, for each item, the single candidate that best fits the sentence grammatically and in meaning.
+
+Hard rules:
+- The chosen "suggestion" MUST be EXACTLY one of THAT item's candidates — copy it verbatim, character for character. NEVER invent a new word or alter a candidate.
+- Use the surrounding words to disambiguate. Example: in "The partiec agree that ... neither party" the verb "agree" and "party" make "parties" correct, not "partied".
+- If no candidate clearly fits, return that item's FIRST candidate unchanged.
+
+Respond with ONLY valid JSON in exactly this shape — no prose, no markdown fences:
+{ "picks": [ { "id": "<the item id>", "suggestion": "<one of that item's candidates>" } ] }`;
+}
+
+/** User-prompt: de te herrangschikken items, elk met woord, zin en kandidaten. */
+function buildRerankUserPrompt(items) {
+  const lines = items.map((it) => {
+    const cands = Array.isArray(it.candidates) ? it.candidates.join(" | ") : "";
+    return `id ${it.id}: word="${it.word}" | sentence="${it.context}" | candidates=[ ${cands} ]`;
+  });
+  return `Pick the best candidate for each item:\n\n${lines.join("\n")}`;
+}
+
+/**
+ * POST /api/spell-rerank
+ * Body: { items: { id: string, word: string, context: string, candidates: string[] }[] }
+ * Response: { picks: { id: string, suggestion: string }[] } | { picks: [], error: string }
+ *
+ * Kiest per offline spelfout de contextueel beste correctie uit de aangeleverde kandidaten.
+ * Verandert NOOIT het aantal fouten — alleen WELKE correctie wordt voorgesteld. Faalt nooit hard:
+ * zonder key/zonder items of bij een upstream-fout komt { picks: [] } terug (offline gok blijft staan).
+ */
+app.post("/api/spell-rerank", async (req, res) => {
+  const { items } = req.body ?? {};
+  console.log(
+    `[clauseguard] /api/spell-rerank: ${Array.isArray(items) ? items.length : 0} woord(en) ontvangen`
+  );
+
+  if (!OPENROUTER_API_KEY || !Array.isArray(items) || items.length === 0) {
+    return res.json({ picks: [] });
+  }
+
+  const ac = new AbortController();
+  const timeoutId = setTimeout(() => ac.abort(), 25000);
+
+  try {
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      signal: ac.signal,
+      headers: {
+        Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        temperature: 0,
+        seed: 7,
+        response_format: { type: "json_object" },
+        reasoning: { enabled: false },
+        messages: [
+          { role: "system", content: buildRerankSystemPrompt() },
+          { role: "user", content: buildRerankUserPrompt(items) },
+        ],
+      }),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text().catch(() => "unknown upstream error");
+      console.error(`[clauseguard] spell-rerank OpenRouter HTTP ${response.status}: ${errText}`);
+      return res.json({ picks: [], error: `Upstream error ${response.status}` });
+    }
+
+    const data = await response.json();
+    const rawContent = data?.choices?.[0]?.message?.content;
+    if (typeof rawContent !== "string") {
+      return res.json({ picks: [], error: "Geen content in LLM-response" });
+    }
+
+    let parsed;
+    try {
+      parsed = JSON.parse(rawContent);
+    } catch {
+      const stripped = rawContent.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "");
+      try {
+        parsed = JSON.parse(stripped);
+      } catch {
+        console.error("[clauseguard] spell-rerank JSON parse mislukt:", rawContent.slice(0, 200));
+        return res.json({ picks: [], error: "Ongeldige JSON van model" });
+      }
+    }
+
+    const rawPicks = Array.isArray(parsed?.picks) ? parsed.picks : [];
+    const picks = rawPicks
+      .filter((p) => p && p.id !== undefined && typeof p.suggestion === "string" && p.suggestion)
+      .map((p) => ({ id: String(p.id), suggestion: p.suggestion }));
+
+    return res.json({ picks });
+  } catch (err) {
+    const aborted = err && err.name === "AbortError";
+    const message = aborted ? "Upstream timeout" : err instanceof Error ? err.message : String(err);
+    console.error("[clauseguard] spell-rerank onverwachte fout:", message);
+    return res.json({ picks: [], error: message });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+});
+
 /**
  * GET /api/health
  * Eenvoudige heartbeat voor de add-in om te controleren of de backend bereikbaar is.

@@ -47,6 +47,12 @@ export interface Issue {
   original: string;
   /** Voorgestelde vervanging. Afwezig voor louter informatieve adviezen. */
   suggestion?: string;
+  /**
+   * Alternatieve spellingsuggesties (nspell's overige kandidaten, best-first). Alleen gevuld door
+   * de offline spelling-engine; voedt de context-rerank (core/spellRerank.ts) die er de zin-passende
+   * uit kiest. Afwezig/leeg voor niet-spelling issues.
+   */
+  candidates?: string[];
   /** Uitleg in gewone taal: het "waarom" (LegalFly's #1 productwaarde). */
   explanation: string;
   /** Vertrouwen 0..1 (vooral relevant voor LLM-suggesties). */

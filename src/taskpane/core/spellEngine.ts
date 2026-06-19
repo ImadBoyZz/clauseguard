@@ -138,7 +138,12 @@ export function checkParagraphs(paragraphs: DocParagraph[]): Issue[] {
     const tokens = tokenize(para.text);
 
     for (const token of tokens) {
-      if (spell.correct(token)) continue;
+      // Een token is pas een spelfout als GEEN van beide woordenboeken het kent. In gemengde
+      // NL/EN-documenten kan een paragraaf als de "verkeerde" taal gedetecteerd worden (bv. een
+      // EN-paragraaf met het NL-woord "Artikel"); puur tegen de gedetecteerde taal checken gaf dan
+      // een valse fout met een onzin-suggestie ("Artikel" → "Ariel"). De gedetecteerde taal bepaalt
+      // hieronder nog wél welke speller de suggesties en de language-tag levert.
+      if (spellNl.correct(token) || spellEn.correct(token)) continue;
 
       const suggestions = spell.suggest(token);
       const suggestion = pickBestSuggestion(token, suggestions);
@@ -156,6 +161,9 @@ export function checkParagraphs(paragraphs: DocParagraph[]): Issue[] {
         severity: "spelling",
         original: token,
         suggestion,
+        // De ruwe nspell-kandidaten (best-first, top 5): de offline `suggestion` is de #1-gok,
+        // de context-rerank kan hier een zin-passender keuze uit halen (bv. "parties" i.p.v. "partied").
+        candidates: suggestions.slice(0, 5),
         explanation,
         language: lang,
         paragraphIndex: para.index,

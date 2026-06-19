@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Button, makeStyles, tokens } from "@fluentui/react-components";
+import { Button, Switch, makeStyles, tokens } from "@fluentui/react-components";
 import {
   DocumentSearchRegular,
   CheckmarkCircleRegular,
@@ -13,7 +13,11 @@ import { cg } from "../theme";
 interface ToolbarProps {
   issues: Issue[];
   status: "idle" | "scanning" | "applying" | "ready";
+  /** Of de AI-laag (grammatica/stijl) meedraait bij de volgende scan. */
+  useLlm: boolean;
   onScan: () => void;
+  /** Wisselt de AI-laag aan/uit (persistente voorkeur, zie de hook). */
+  onToggleLlm: (value: boolean) => void;
   onApplyAll: () => void;
   onAcceptAll: () => void;
   onRejectAll: () => void;
@@ -75,7 +79,9 @@ const useStyles = makeStyles({
 const Toolbar: React.FC<ToolbarProps> = ({
   issues,
   status,
+  useLlm,
   onScan,
+  onToggleLlm,
   onApplyAll,
   onAcceptAll,
   onRejectAll,
@@ -111,6 +117,15 @@ const Toolbar: React.FC<ToolbarProps> = ({
       >
         {isScanning ? "Document scannen…" : hasIssues ? "Opnieuw scannen" : "Scan document"}
       </Button>
+
+      {/* Tellen we grammatica/stijl-adviezen mee? Uit = alleen exacte spelfouten in de telling
+          (de wobbel-bron staat dan uit). De spelsuggesties blijven los hiervan slim (context-rerank). */}
+      <Switch
+        checked={useLlm}
+        disabled={isBusy}
+        onChange={(_ev, data) => onToggleLlm(data.checked)}
+        label={useLlm ? "AI-adviezen: grammatica & stijl" : "Alleen spelfouten tellen (exact)"}
+      />
 
       {/* Bulktoepassing + samenvatting (zodra er issues zijn) */}
       {hasIssues && (

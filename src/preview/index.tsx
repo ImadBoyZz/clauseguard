@@ -289,7 +289,9 @@ const Preview: React.FC = () => {
             <Toolbar
               issues={issues}
               status={status}
+              useLlm={true}
               onScan={onScan}
+              onToggleLlm={() => undefined}
               onApplyAll={onApplyAll}
               onAcceptAll={() => undefined}
               onRejectAll={() => undefined}
